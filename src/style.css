@@ -1,0 +1,381 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Apple 风格全局样式 */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  
+  html {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  body {
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    color: #1d1d1f;
+    overflow: hidden;
+  }
+  
+  /* 深色模式 */
+  .dark body {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+    color: #f5f5f7;
+  }
+  
+  /* 深色模式下的文本颜色 */
+  .dark {
+    color-scheme: dark;
+  }
+}
+
+/* 自定义组件样式 */
+@layer components {
+  /* 毛玻璃效果 */
+  .glass {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(20px);
+    border: 0.5px solid rgba(255, 255, 255, 0.3);
+  }
+  
+  .dark .glass {
+    background: rgba(0, 0, 0, 0.8);
+    border: 0.5px solid rgba(255, 255, 255, 0.15);
+  }
+  
+  /* 输入框专用样式 - 无边框，纯阴影设计，更舒适的背景 */
+  .input-container {
+    background: rgba(248, 250, 252, 0.98);
+    backdrop-filter: blur(20px);
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
+    transition: all 0.2s ease;
+    min-height: 60px; /* 确保最小高度，避免压抑感 */
+  }
+  
+  .input-container:hover {
+    background: rgba(248, 250, 252, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.08);
+  }
+  
+  .input-container:focus-within {
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 4px 12px rgba(0, 122, 255, 0.08), 0 2px 6px rgba(0, 122, 255, 0.12);
+    transform: translateY(-1px);
+  }
+  
+  .dark .input-container {
+    background: rgba(45, 45, 48, 0.98);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+  
+  .dark .input-container:hover {
+    background: rgba(50, 50, 53, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25), 0 1px 4px rgba(0, 0, 0, 0.35);
+  }
+  
+  .dark .input-container:focus-within {
+    background: rgba(55, 55, 58, 1);
+    box-shadow: 0 4px 12px rgba(0, 122, 255, 0.15), 0 2px 6px rgba(0, 122, 255, 0.2);
+    transform: translateY(-1px);
+  }
+  
+  /* 深色模式下的输入框 */
+  .dark input,
+  .dark textarea,
+  .dark select {
+    background: rgba(255, 255, 255, 0.1);
+    color: #f5f5f7;
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  
+  /* ChatInput 中的 textarea 保持透明，与容器背景一致 */
+  .dark .input-container textarea {
+    background: transparent !important;
+  }
+  
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: rgba(255, 255, 255, 0.6);
+  }
+  
+  /* 深色模式下的按钮 */
+  .dark button {
+    color: #f5f5f7;
+  }
+  
+  /* 深色模式下的文本 */
+  .dark .text-neutral-gray-800 {
+    color: #f5f5f7 !important;
+  }
+  
+  .dark .text-neutral-gray-700 {
+    color: #e5e5e7 !important;
+  }
+  
+  .dark .text-neutral-gray-600 {
+    color: #d1d1d6 !important;
+  }
+  
+  .dark .text-neutral-gray-500 {
+    color: #aeaeb2 !important;
+  }
+  
+  /* 深色模式下的表单元素边框优化 */
+  .dark .form-input {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.05);
+  }
+  
+  .dark .form-input:focus {
+    border-color: #007AFF;
+    box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.15);
+  }
+  
+  .dark .setting-select {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.05);
+  }
+  
+  .dark .setting-select:focus {
+    border-color: #007AFF;
+    box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.15);
+  }
+  
+  /* 确保聊天界面布局稳定 */
+  .chat-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  
+  .messages-area {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  
+  .input-area {
+    flex-shrink: 0;
+  }
+  
+  /* 优化的消息样式已直接在组件中定义 */
+  
+  /* 输入框样式 */
+  .input-field {
+    @apply glass rounded-xl px-4 py-3 border-0 outline-none resize-none;
+    @apply focus:ring-2 focus:ring-primary-blue focus:ring-opacity-50;
+    @apply placeholder-neutral-gray-500;
+  }
+  
+  /* 按钮样式 */
+  .btn-primary {
+    @apply bg-primary-blue text-white rounded-xl px-6 py-3;
+    @apply hover:bg-opacity-90 active:scale-95 transition-all duration-200;
+  }
+  
+  .btn-secondary {
+    @apply glass rounded-xl px-6 py-3;
+    @apply hover:bg-opacity-90 active:scale-95 transition-all duration-200;
+  }
+  
+  /* 滚动条样式 */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+  
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+}
+
+/* 动画效果 */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+  
+  .animate-pulse-soft {
+    animation: pulseSoft 2s infinite;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulseSoft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}/* 代码高亮样式 (
+基于 GitHub 主题) */
+.hljs {
+  background: rgba(0, 0, 0, 0.05);
+  color: #24292e;
+}
+
+.dark .hljs {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e1e4e8;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #6a737d;
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst {
+  color: #d73a49;
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag .hljs-attr {
+  color: #005cc5;
+}
+
+.hljs-string,
+.hljs-doctag {
+  color: #032f62;
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-selector-id {
+  color: #6f42c1;
+  font-weight: bold;
+}
+
+.hljs-subst {
+  font-weight: normal;
+}
+
+.hljs-type,
+.hljs-class .hljs-title,
+.hljs-tag,
+.hljs-regexp,
+.hljs-link {
+  color: #22863a;
+}
+
+.hljs-symbol,
+.hljs-bullet,
+.hljs-built_in,
+.hljs-builtin-name {
+  color: #e36209;
+}
+
+.hljs-meta,
+.hljs-deletion {
+  color: #b31d28;
+}
+
+.hljs-addition {
+  color: #22863a;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+/* 深色模式下的代码高亮 */
+.dark .hljs-comment,
+.dark .hljs-quote {
+  color: #8b949e;
+}
+
+.dark .hljs-keyword,
+.dark .hljs-selector-tag,
+.dark .hljs-subst {
+  color: #ff7b72;
+}
+
+.dark .hljs-number,
+.dark .hljs-literal,
+.dark .hljs-variable,
+.dark .hljs-template-variable,
+.dark .hljs-tag .hljs-attr {
+  color: #79c0ff;
+}
+
+.dark .hljs-string,
+.dark .hljs-doctag {
+  color: #a5d6ff;
+}
+
+.dark .hljs-title,
+.dark .hljs-section,
+.dark .hljs-selector-id {
+  color: #d2a8ff;
+}
+
+.dark .hljs-type,
+.dark .hljs-class .hljs-title,
+.dark .hljs-tag,
+.dark .hljs-regexp,
+.dark .hljs-link {
+  color: #7ee787;
+}
+
+.dark .hljs-symbol,
+.dark .hljs-bullet,
+.dark .hljs-built_in,
+.dark .hljs-builtin-name {
+  color: #ffa657;
+}
