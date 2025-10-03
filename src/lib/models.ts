@@ -2,20 +2,20 @@
 export interface LLMModel {
   id: string
   name: string
-  description: string
-  provider: LLMProvider
-  maxTokens: number
+  description?: string
+  contextLength?: number
   pricing?: {
-    input: number
-    output: number
+    prompt?: number
+    completion?: number
+    input?: number
+    output?: number
   }
-  capabilities: ModelCapability[]
 }
 
 export interface LLMProvider {
   id: string
   name: string
-  type: 'openai' | 'anthropic' | 'google' | 'ollama' | 'openrouter' | 'custom'
+  type: 'openai' | 'anthropic' | 'google' | 'ollama' | 'openrouter' | 'gemini' | 'zhipu' | 'openai-compatible' | 'custom'
   baseUrl?: string
   apiKey?: string
   models: LLMModel[]
@@ -53,6 +53,7 @@ export interface ChatSettings {
   temperature: number
   maxTokens: number
   topP: number
+  topK?: number
   frequencyPenalty: number
   presencePenalty: number
   systemPrompt?: string

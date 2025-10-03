@@ -662,14 +662,26 @@ onMounted(async () => {
         `👋 欢迎使用 Bor 智能体中枢！\n\n**系统状态：**\n- Ollama 服务：❌ 未连接\n\n**开始使用：**\n1. 请先安装 Ollama：https://ollama.ai\n2. 启动 Ollama 服务\n3. 拉取一个模型，例如：\`ollama pull llama2\`\n4. 然后说"检查系统状态"重新检测\n\n或者说"配置 LLM"来设置其他模型提供商。`
       )
     } else if (systemStatus.value.availableModels.length === 0) {
-      // Ollama 已连接但没有模型
-      welcomeMessage = MessageFactory.createAssistantMessage(
-        `👋 欢迎使用 Bor 智能体中枢！\n\n**系统状态：**\n- Ollama 服务：✅ 已连接\n- 可用模型：❌ 暂无\n\n**开始使用：**\n请先拉取一个模型，例如：\n\`\`\`bash\nollama pull llama2\n# 或者\nollama pull qwen:7b\n\`\`\`\n\n然后说"刷新模型列表"来重新检测。`
-      )
+      // 服务已连接但没有模型
+      const currentProvider = llmManager.currentProvider.value
+      const providerName = llmManager.availableProviders.value.find(p => p.id === currentProvider)?.name || currentProvider
+      
+      if (currentProvider === 'ollama') {
+        welcomeMessage = MessageFactory.createAssistantMessage(
+          `👋 欢迎使用 Bor 智能体中枢！\n\n**系统状态：**\n- ${providerName} 服务：✅ 已连接\n- 可用模型：❌ 暂无\n\n**开始使用：**\n请先拉取一个模型，例如：\n\`\`\`bash\nollama pull llama2\n# 或者\nollama pull qwen:7b\n\`\`\`\n\n然后说"刷新模型列表"来重新检测。`
+        )
+      } else {
+        welcomeMessage = MessageFactory.createAssistantMessage(
+          `👋 欢迎使用 Bor 智能体中枢！\n\n**系统状态：**\n- ${providerName} 服务：✅ 已连接\n- 可用模型：❌ 暂无\n\n**开始使用：**\n请在LLM配置中添加模型，或检查服务配置是否正确。\n\n您可以说"打开配置"来管理模型设置。`
+        )
+      }
     } else {
       // 一切正常
+      const currentProvider = llmManager.currentProvider.value
+      const providerName = llmManager.availableProviders.value.find(p => p.id === currentProvider)?.name || currentProvider
+      
       welcomeMessage = MessageFactory.createAssistantMessage(
-        `👋 欢迎使用 Bor 智能体中枢！\n\n**当前状态：**\n- Ollama 服务：✅ 已连接\n- 当前模型：${systemStatus.value.currentModel}\n- 可用模型：${systemStatus.value.availableModels.length} 个\n\n您可以直接开始对话，或说"检查系统状态"查看详细信息。`
+        `👋 欢迎使用 Bor 智能体中枢！\n\n**当前状态：**\n- ${providerName} 服务：✅ 已连接\n- 当前模型：${systemStatus.value.currentModel}\n- 可用模型：${systemStatus.value.availableModels.length} 个\n\n您可以直接开始对话，或说"检查系统状态"查看详细信息。`
       )
     }
     
