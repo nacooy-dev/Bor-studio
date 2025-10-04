@@ -16,12 +16,7 @@
     <div v-else class="panel-content">
       <!-- 提供商选择 -->
       <div class="config-section">
-        <div class="section-header">
-          <h3 class="section-title">选择提供商</h3>
-          <button class="btn-add-custom" @click="addCustomProvider">
-            + 添加自定义
-          </button>
-        </div>
+        <h3 class="section-title">选择提供商</h3>
         <div class="provider-grid">
           <div
             v-for="provider in llmManager.availableProviders.value"
@@ -105,7 +100,7 @@
               :key="model.id"
               :value="model.id"
             >
-              {{ model.name }}{{ model.description ? ` - ${model.description}` : '' }}
+              {{ model.name }}
             </option>
           </select>
           <button
@@ -128,12 +123,20 @@
             class="btn-set-default"
             @click="setAsDefault"
           >
-            设为默认
+            设为默认模型
           </button>
         </div>
         
         <!-- 模型信息 -->
         <div v-if="selectedModelInfo" class="model-info">
+          <div class="info-item">
+            <span class="info-label">模型 ID:</span>
+            <span class="info-value">{{ selectedModelInfo.id }}</span>
+          </div>
+          <div v-if="selectedModelInfo.description" class="info-item">
+            <span class="info-label">描述:</span>
+            <span class="info-value">{{ selectedModelInfo.description }}</span>
+          </div>
           <div class="info-item">
             <span class="info-label">上下文长度:</span>
             <span class="info-value">{{ selectedModelInfo.contextLength || 'N/A' }} tokens</span>
@@ -298,102 +301,7 @@
             </div>
           </div>
 
-          <!-- OpenAI 兼容配置 -->
-          <div v-if="configuringProvider === 'openai-compatible'" class="config-form">
-            <div class="form-group">
-              <label for="compatible-name">服务名称</label>
-              <input
-                id="compatible-name"
-                v-model="providerConfig.name"
-                type="text"
-                placeholder="自定义服务名称"
-                class="form-input"
-              />
-            </div>
-            <div class="form-group">
-              <label for="compatible-base-url">基础 URL</label>
-              <input
-                id="compatible-base-url"
-                v-model="providerConfig.baseUrl"
-                type="url"
-                placeholder="http://localhost:8000/v1"
-                class="form-input"
-                required
-              />
-              <small class="form-help">OpenAI 兼容的 API 端点</small>
-            </div>
-            <div class="form-group">
-              <label for="compatible-api-key">API 密钥 (可选)</label>
-              <input
-                id="compatible-api-key"
-                v-model="providerConfig.apiKey"
-                type="password"
-                placeholder="如果需要认证请填写"
-                class="form-input"
-              />
-            </div>
-            
-            <!-- 手动模型配置 -->
-            <div class="form-group">
-              <label>手动配置模型</label>
-              <small class="form-help">如果服务器不支持自动发现模型，请手动添加</small>
-              
-              <!-- 已配置的模型列表 -->
-              <div v-if="providerConfig.models && providerConfig.models.length > 0" class="manual-models-list">
-                <div 
-                  v-for="(model, index) in providerConfig.models" 
-                  :key="model.id"
-                  class="manual-model-item"
-                >
-                  <div class="model-info">
-                    <span class="model-name">{{ model.name }}</span>
-                    <span class="model-id">{{ model.id }}</span>
-                  </div>
-                  <button 
-                    type="button"
-                    class="btn-remove-model"
-                    @click="removeManualModel(index)"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-              
-              <!-- 添加新模型 -->
-              <div class="add-model-form">
-                <div class="add-model-inputs">
-                  <input
-                    v-model="newManualModel.id"
-                    type="text"
-                    placeholder="模型 ID (必填)"
-                    class="form-input small"
-                    required
-                  />
-                  <input
-                    v-model="newManualModel.name"
-                    type="text"
-                    placeholder="显示名称 (可选)"
-                    class="form-input small"
-                  />
-                  <input
-                    v-model.number="newManualModel.contextLength"
-                    type="number"
-                    placeholder="上下文长度"
-                    class="form-input small"
-                    min="1"
-                  />
-                </div>
-                <button 
-                  type="button"
-                  class="btn-add-model"
-                  @click="addManualModel"
-                  :disabled="!newManualModel.id"
-                >
-                  + 添加模型
-                </button>
-              </div>
-            </div>
-          </div>
+
 
           <!-- 自定义提供商配置 -->
           <div v-if="configuringProvider === 'custom'" class="config-form">
@@ -469,11 +377,7 @@ const pullingModel = ref(false)
 const pullProgress = ref('')
 
 const isEditingProvider = ref(false)
-const newManualModel = reactive({
-  id: '',
-  name: '',
-  contextLength: 4096
-})
+
 
 // 设置
 const settings = reactive<ChatSettings>(llmManager.getSettings())
@@ -486,7 +390,13 @@ const selectedModelInfo = computed(() => {
 
 // 生命周期
 onMounted(async () => {
-  await llmManager.initialize()
+  try {
+    await llmManager.initialize()
+  } catch (error) {
+    console.error('配置面板初始化失败:', error)
+    // 即使初始化失败也要显示界面
+    alert('配置面板初始化遇到问题，部分功能可能不可用。请检查控制台错误信息。')
+  }
 })
 
 // 方法
@@ -509,7 +419,13 @@ const selectProvider = async (providerId: string) => {
 }
 
 const selectModel = () => {
-  // 模型选择后的逻辑，如果需要的话
+  try {
+    // 模型选择后的逻辑，如果需要的话
+    llmManager.setModel(llmManager.currentModel.value)
+  } catch (error) {
+    console.error('模型选择失败:', error)
+    alert(`模型选择失败: ${error instanceof Error ? error.message : '未知错误'}`)
+  }
 }
 
 const testProvider = async (providerId: string) => {
@@ -525,72 +441,67 @@ const testProvider = async (providerId: string) => {
 }
 
 const configureProvider = (providerId: string) => {
-  configuringProvider.value = providerId
-  
-  // 获取现有配置
-  const provider = llmManager.getProvider(providerId)
-  const existingConfig = provider?.getConfig() || {}
-  
-  // 判断是否为编辑模式
-  isEditingProvider.value = provider?.isConfigured() || false
-  
-  // 根据提供商类型设置默认配置
-  const defaultConfig = {
-    apiKey: '',
-    baseUrl: '',
-    name: '',
-    models: []
+  try {
+    configuringProvider.value = providerId
+    
+    // 获取现有配置
+    const provider = llmManager.getProvider(providerId)
+    const existingConfig = provider?.getConfig() || {}
+    
+    // 判断是否为编辑模式
+    isEditingProvider.value = provider?.isConfigured() || false
+    
+    // 根据提供商类型设置默认配置
+    const defaultConfig = {
+      apiKey: '',
+      baseUrl: '',
+      name: '',
+      models: []
+    }
+    
+    // 为不同提供商设置特定的默认值
+    switch (providerId) {
+      case 'openai':
+        defaultConfig.baseUrl = 'https://api.openai.com/v1'
+        break
+      case 'openrouter':
+        defaultConfig.baseUrl = 'https://openrouter.ai/api/v1'
+        break
+      case 'gemini':
+        defaultConfig.baseUrl = 'https://generativelanguage.googleapis.com/v1beta'
+        break
+      case 'zhipu':
+        defaultConfig.baseUrl = 'https://open.bigmodel.cn/api/paas/v4'
+        break
+    }
+    
+    Object.assign(providerConfig, {
+      ...defaultConfig,
+      ...existingConfig
+    })
+    
+    showConfigDialog.value = true
+  } catch (error) {
+    console.error('配置提供商失败:', error)
+    alert(`配置提供商失败: ${error instanceof Error ? error.message : '未知错误'}`)
   }
-  
-  // 为不同提供商设置特定的默认值
-  switch (providerId) {
-    case 'openai':
-      defaultConfig.baseUrl = 'https://api.openai.com/v1'
-      break
-    case 'openrouter':
-      defaultConfig.baseUrl = 'https://openrouter.ai/api/v1'
-      break
-    case 'gemini':
-      defaultConfig.baseUrl = 'https://generativelanguage.googleapis.com/v1beta'
-      break
-    case 'zhipu':
-      defaultConfig.baseUrl = 'https://open.bigmodel.cn/api/paas/v4'
-      break
-    case 'openai-compatible':
-      defaultConfig.baseUrl = 'http://localhost:8000/v1'
-      defaultConfig.name = '自定义服务'
-      break
-  }
-  
-  Object.assign(providerConfig, {
-    ...defaultConfig,
-    ...existingConfig
-  })
-  
-  showConfigDialog.value = true
 }
 
 const closeConfigDialog = () => {
-  showConfigDialog.value = false
-  configuringProvider.value = ''
-  isEditingProvider.value = false
-  Object.assign(providerConfig, {})
+  try {
+    showConfigDialog.value = false
+    configuringProvider.value = ''
+    isEditingProvider.value = false
+    Object.assign(providerConfig, {})
+  } catch (error) {
+    console.error('关闭配置对话框失败:', error)
+  }
 }
 
 const saveProviderConfig = async () => {
   try {
-    if (configuringProvider.value === 'custom') {
-      // 添加自定义提供商
-      await llmManager.addCustomProvider({
-        id: providerConfig.id,
-        name: providerConfig.name,
-        baseUrl: providerConfig.baseUrl,
-        apiKey: providerConfig.apiKey
-      })
-    } else {
-      // 配置现有提供商
-      await llmManager.configureProvider(configuringProvider.value, { ...providerConfig })
-    }
+    // 配置现有提供商
+    await llmManager.configureProvider(configuringProvider.value, { ...providerConfig })
     
     closeConfigDialog()
     alert('配置保存成功！')
@@ -668,16 +579,7 @@ const getModelDisplayName = (modelId: string) => {
   return modelId
 }
 
-const addCustomProvider = () => {
-  configuringProvider.value = 'custom'
-  Object.assign(providerConfig, {
-    id: '',
-    name: '',
-    baseUrl: '',
-    apiKey: ''
-  })
-  showConfigDialog.value = true
-}
+
 
 // 测试当前模型
 const testCurrentModel = async () => {
@@ -713,61 +615,30 @@ const testCurrentModel = async () => {
 
 // 设为默认模型
 const setAsDefault = async () => {
-  if (!llmManager.currentModel.value) return
+  if (!llmManager.currentModel.value) {
+    alert('请先选择一个模型')
+    return
+  }
   
   try {
     // 保存当前选择为默认
     llmManager.setModel(llmManager.currentModel.value)
     
+    // 同时保存提供商选择
+    if (llmManager.currentProvider.value) {
+      await llmManager.setProvider(llmManager.currentProvider.value)
+    }
+    
     // 保存配置到本地存储
     await llmManager.save()
     
-    alert(`✅ 已设置 ${getModelDisplayName(llmManager.currentModel.value)} 为默认模型`)
+    alert(`✅ 已设置 ${getModelDisplayName(llmManager.currentModel.value)} 为默认模型和提供商`)
   } catch (error) {
     alert(`❌ 设置默认模型失败: ${error instanceof Error ? error.message : '未知错误'}`)
   }
 }
 
-// 添加手动模型
-const addManualModel = () => {
-  if (!newManualModel.id.trim()) {
-    alert('请输入模型 ID')
-    return
-  }
-  
-  // 检查是否已存在
-  if (providerConfig.models && providerConfig.models.find((m: any) => m.id === newManualModel.id)) {
-    alert('该模型已存在')
-    return
-  }
-  
-  const model = {
-    id: newManualModel.id.trim(),
-    name: newManualModel.name.trim() || newManualModel.id.trim(),
-    description: `手动配置的模型: ${newManualModel.id}`,
-    contextLength: newManualModel.contextLength || 4096
-  }
-  
-  if (!providerConfig.models) {
-    providerConfig.models = []
-  }
-  
-  providerConfig.models.push(model)
-  
-  // 重置表单
-  Object.assign(newManualModel, {
-    id: '',
-    name: '',
-    contextLength: 4096
-  })
-}
 
-// 移除手动模型
-const removeManualModel = (index: number) => {
-  if (providerConfig.models && index >= 0 && index < providerConfig.models.length) {
-    providerConfig.models.splice(index, 1)
-  }
-}
 </script>
 
 <style scoped>
@@ -907,102 +778,7 @@ const removeManualModel = (index: number) => {
 }
 
 /* 手动模型配置样式 */
-.manual-models-list {
-  margin: 12px 0;
-  border: 1px solid #e5e5ea;
-  border-radius: 8px;
-  max-height: 200px;
-  overflow-y: auto;
-}
 
-.manual-model-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  border-bottom: 1px solid #f2f2f7;
-}
-
-.manual-model-item:last-child {
-  border-bottom: none;
-}
-
-.model-info {
-  flex: 1;
-}
-
-.model-name {
-  font-weight: 500;
-  color: #1d1d1f;
-  display: block;
-}
-
-.model-id {
-  font-size: 12px;
-  color: #8e8e93;
-}
-
-.btn-remove-model {
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: #ff3b30;
-  color: white;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-remove-model:hover {
-  background: #d70015;
-}
-
-.add-model-form {
-  margin-top: 12px;
-}
-
-.add-model-inputs {
-  display: grid;
-  grid-template-columns: 2fr 2fr 1fr;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.form-input.small {
-  padding: 8px 10px;
-  font-size: 13px;
-}
-
-.btn-add-model {
-  width: 100%;
-  padding: 8px 12px;
-  background: #34c759;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-add-model:hover:not(:disabled) {
-  background: #30d158;
-}
-
-.btn-add-model:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-@media (max-width: 600px) {
-  .add-model-inputs {
-    grid-template-columns: 1fr;
-  }
-}
 
 .provider-grid {
   display: grid;

@@ -206,7 +206,7 @@ const handleSend = async (content: string, files?: File[]) => {
     console.error('发送消息失败:', error)
     
     // 检查是否是用户主动中止
-    if (error.name === 'AbortError') {
+    if (error && (error as Error).name === 'AbortError') {
       const abortMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -301,7 +301,7 @@ const handleLLMResponse = async (userInput: string, dialogueResponse?: any) => {
   if (!systemStatus.value.currentModel) {
     console.log('当前模型未设置，自动选择第一个可用模型')
     systemStatus.value.currentModel = systemStatus.value.availableModels[0]
-    llmManager.setCurrentModel(systemStatus.value.currentModel)
+    await llmManager.setModel(systemStatus.value.currentModel)
   }
 
   console.log('准备调用 LLM，当前模型:', systemStatus.value.currentModel)
@@ -348,7 +348,7 @@ const handleLLMResponse = async (userInput: string, dialogueResponse?: any) => {
     console.error('LLM 调用失败:', error)
     const messageIndex = messages.value.findIndex(m => m.id === assistantMessage.id)
     if (messageIndex !== -1) {
-      messages.value[messageIndex].content = `❌ 对话失败：${error.message}\n\n请检查 Ollama 服务状态或尝试切换模型。`
+      messages.value[messageIndex].content = `❌ 对话失败：${(error as Error).message || '未知错误'}\n\n请检查 Ollama 服务状态或尝试切换模型。`
     }
   } finally {
     streamingMessageId.value = null
@@ -418,9 +418,9 @@ const executeSystemCommand = async (command: string, args: any[] = []) => {
   switch (command) {
     case 'setTheme':
       const theme = args[0]
-      if (window.electronAPI && window.electronAPI.setTheme) {
+      if ((window as any).electronAPI && (window as any).electronAPI.setTheme) {
         try {
-          await window.electronAPI.setTheme(theme)
+          await (window as any).electronAPI.setTheme(theme)
           console.log(`主题已切换到: ${theme}`)
         } catch (error) {
           console.error('主题切换失败:', error)
@@ -469,8 +469,8 @@ const handleSystemCommands = async (userInput: string): Promise<boolean> => {
     messages.value.push(configMessage)
     
     setTimeout(() => {
-      if (window.electronAPI) {
-        window.electronAPI.openConfigWindow('llm-settings')
+      if ((window as any).electronAPI) {
+        (window as any).electronAPI.openConfigWindow('llm-settings')
       } else {
         // Web 环境下的处理
         alert('配置功能需要在桌面应用中使用')
@@ -484,7 +484,14 @@ const handleSystemCommands = async (userInput: string): Promise<boolean> => {
     await checkSystemStatus()
     const status = systemStatus.value
     const statusMessage = MessageFactory.createAssistantMessage(
-      `📊 系统状态报告\n\n**Ollama 服务：** ${status.ollama ? '✅ 已连接' : '❌ 未连接'}\n**当前模型：** ${status.currentModel}\n**可用模型：** ${status.availableModels.length} 个\n\n${status.availableModels.length > 0 ? `模型列表：\n${status.availableModels.map(m => `- ${m}`).join('\n')}` : '请先拉取模型才能开始对话。'}`
+      `📊 系统状态报告
+
+**Ollama 服务：** ${status.ollama ? '✅ 已连接' : '❌ 未连接'}
+**当前模型：** ${status.currentModel}
+**可用模型：** ${status.availableModels.length} 个
+
+${status.availableModels.length > 0 ? `模型列表：
+${status.availableModels.map(m => `- ${m}`).join('\n')}` : '请先拉取模型才能开始对话。'}`
     )
     messages.value.push(statusMessage)
     return true
@@ -494,7 +501,10 @@ const handleSystemCommands = async (userInput: string): Promise<boolean> => {
   if (input.includes('刷新') && input.includes('模型')) {
     await checkSystemStatus()
     const refreshMessage = MessageFactory.createAssistantMessage(
-      `🔄 模型列表已刷新\n\n发现 ${systemStatus.value.availableModels.length} 个可用模型：\n${systemStatus.value.availableModels.map(m => `- ${m}`).join('\n') || '暂无可用模型'}`
+      `🔄 模型列表已刷新
+
+发现 ${systemStatus.value.availableModels.length} 个可用模型：
+${systemStatus.value.availableModels.map(m => `- ${m}`).join('\n') || '暂无可用模型'}`
     )
     messages.value.push(refreshMessage)
     return true
@@ -540,14 +550,19 @@ const handleSystemCommands = async (userInput: string): Promise<boolean> => {
     // 如果还是没找到，显示可用模型列表
     if (!modelName) {
       const modelListMessage = MessageFactory.createAssistantMessage(
-        `❓ 请指定要切换的模型名称\n\n**可用模型：**\n${availableModels.map(m => `- ${m}`).join('\n')}\n\n例如：说"切换模型到 ${availableModels[0]}"`
+        `❓ 请指定要切换的模型名称
+
+**可用模型：**
+${availableModels.map(m => `- ${m}`).join('\n')}
+
+例如：说"切换模型到 ${availableModels[0]}"`
       )
       messages.value.push(modelListMessage)
       return true
     }
     
     systemStatus.value.currentModel = modelName
-    llmManager.setCurrentModel(modelName)
+    await llmManager.setModel(modelName)
 
     const switchMessage = MessageFactory.createAssistantMessage(
       `✅ 已切换到模型：**${modelName}**\n\n现在可以开始对话了！`
@@ -559,7 +574,25 @@ const handleSystemCommands = async (userInput: string): Promise<boolean> => {
   // 如何安装 Ollama
   if (input.includes('如何') && input.includes('安装') && input.includes('ollama')) {
     const installMessage = MessageFactory.createAssistantMessage(
-      `📦 如何安装 Ollama\n\n**方法一：官网下载**\n1. 访问 https://ollama.ai\n2. 下载适合您系统的安装包\n3. 按照安装向导完成安装\n\n**方法二：命令行安装**\n\`\`\`bash\n# macOS/Linux\ncurl -fsSL https://ollama.ai/install.sh | sh\n\n# Windows (PowerShell)\niwr -useb https://ollama.ai/install.ps1 | iex\n\`\`\`\n\n**安装完成后：**\n1. 拉取一个模型：\`ollama pull llama2\`\n2. 说"检查系统状态"来验证安装`
+      `📦 如何安装 Ollama
+
+**方法一：官网下载**
+1. 访问 https://ollama.ai
+2. 下载适合您系统的安装包
+3. 按照安装向导完成安装
+
+**方法二：命令行安装**
+\`\`\`bash
+# macOS/Linux
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Windows (PowerShell)
+iwr -useb https://ollama.ai/install.ps1 | iex
+\`\`\`
+
+**安装完成后：**
+1. 拉取一个模型：\`ollama pull llama2\`
+2. 说"检查系统状态"来验证安装`
     )
     messages.value.push(installMessage)
     return true
@@ -568,7 +601,25 @@ const handleSystemCommands = async (userInput: string): Promise<boolean> => {
   // 如何拉取模型
   if (input.includes('如何') && input.includes('拉取') && input.includes('模型')) {
     const pullMessage = MessageFactory.createAssistantMessage(
-      `🔽 如何拉取模型\n\n**推荐模型：**\n\`\`\`bash\n# 轻量级模型（推荐新手）\nollama pull llama2:7b\nollama pull qwen:7b\n\n# 中等模型（平衡性能）\nollama pull llama2:13b\nollama pull mistral:7b\n\n# 代码专用模型\nollama pull codellama:7b\nollama pull deepseek-coder:6.7b\n\`\`\`\n\n**拉取完成后：**\n说"刷新模型列表"来重新检测可用模型。`
+      `🔽 如何拉取模型
+
+**推荐模型：**
+\`\`\`bash
+# 轻量级模型（推荐新手）
+ollama pull llama2:7b
+ollama pull qwen:7b
+
+# 中等模型（平衡性能）
+ollama pull llama2:13b
+ollama pull mistral:7b
+
+# 代码专用模型
+ollama pull codellama:7b
+ollama pull deepseek-coder:6.7b
+\`\`\`
+
+**拉取完成后：**
+说"刷新模型列表"来重新检测可用模型。`
     )
     messages.value.push(pullMessage)
     return true
@@ -620,6 +671,18 @@ const scrollToBottom = () => {
   }
 }
 
+// 工具函数：获取模型显示名称
+const getModelDisplayName = (modelId: string) => {
+  // 从所有提供商中查找模型
+  for (const provider of llmManager.availableProviders.value) {
+    const model = provider.models.find(m => m.id === modelId)
+    if (model) {
+      return model.name || model.id
+    }
+  }
+  return modelId
+}
+
 // 检查系统状态
 const checkSystemStatus = async () => {
   try {
@@ -645,50 +708,187 @@ const checkSystemStatus = async () => {
   }
 }
 
-onMounted(async () => {
-  // 初始化聊天存储
-  chatStore.initialize()
+// 设为默认模型
+const setAsDefault = async () => {
+  if (!llmManager.currentModel.value) {
+    alert('请先选择一个模型')
+    return
+  }
   
-  // 检查系统状态
-  await checkSystemStatus()
-  
-  // 根据系统状态显示不同的欢迎信息
-  if (messages.value.length === 0) {
-    let welcomeMessage: Message
+  try {
+    // 保存当前选择为默认
+    llmManager.setModel(llmManager.currentModel.value)
     
-    if (!systemStatus.value.ollama) {
-      // Ollama 未连接
-      welcomeMessage = MessageFactory.createAssistantMessage(
-        `👋 欢迎使用 Bor 智能体中枢！\n\n**系统状态：**\n- Ollama 服务：❌ 未连接\n\n**开始使用：**\n1. 请先安装 Ollama：https://ollama.ai\n2. 启动 Ollama 服务\n3. 拉取一个模型，例如：\`ollama pull llama2\`\n4. 然后说"检查系统状态"重新检测\n\n或者说"配置 LLM"来设置其他模型提供商。`
-      )
-    } else if (systemStatus.value.availableModels.length === 0) {
-      // 服务已连接但没有模型
-      const currentProvider = llmManager.currentProvider.value
-      const providerName = llmManager.availableProviders.value.find(p => p.id === currentProvider)?.name || currentProvider
-      
-      if (currentProvider === 'ollama') {
-        welcomeMessage = MessageFactory.createAssistantMessage(
-          `👋 欢迎使用 Bor 智能体中枢！\n\n**系统状态：**\n- ${providerName} 服务：✅ 已连接\n- 可用模型：❌ 暂无\n\n**开始使用：**\n请先拉取一个模型，例如：\n\`\`\`bash\nollama pull llama2\n# 或者\nollama pull qwen:7b\n\`\`\`\n\n然后说"刷新模型列表"来重新检测。`
-        )
-      } else {
-        welcomeMessage = MessageFactory.createAssistantMessage(
-          `👋 欢迎使用 Bor 智能体中枢！\n\n**系统状态：**\n- ${providerName} 服务：✅ 已连接\n- 可用模型：❌ 暂无\n\n**开始使用：**\n请在LLM配置中添加模型，或检查服务配置是否正确。\n\n您可以说"打开配置"来管理模型设置。`
-        )
-      }
-    } else {
-      // 一切正常
-      const currentProvider = llmManager.currentProvider.value
-      const providerName = llmManager.availableProviders.value.find(p => p.id === currentProvider)?.name || currentProvider
-      
-      welcomeMessage = MessageFactory.createAssistantMessage(
-        `👋 欢迎使用 Bor 智能体中枢！\n\n**当前状态：**\n- ${providerName} 服务：✅ 已连接\n- 当前模型：${systemStatus.value.currentModel}\n- 可用模型：${systemStatus.value.availableModels.length} 个\n\n您可以直接开始对话，或说"检查系统状态"查看详细信息。`
-      )
+    // 同时保存提供商选择
+    if (llmManager.currentProvider.value) {
+      await llmManager.setProvider(llmManager.currentProvider.value)
     }
     
-    messages.value.push(welcomeMessage)
+    // 保存配置到本地存储
+    await llmManager.save()
     
-    // 更新建议列表
-    suggestions.value = getSuggestions()
+    alert(`✅ 已设置 ${getModelDisplayName(llmManager.currentModel.value)} 为默认模型和提供商`)
+  } catch (error) {
+    alert(`❌ 设置默认模型失败: ${error instanceof Error ? error.message : '未知错误'}`)
+  }
+}
+
+onMounted(async () => {
+  try {
+    // 初始化聊天存储
+    chatStore.initialize()
+    
+    // 检查系统状态
+    await checkSystemStatus()
+    
+    // 根据系统状态显示不同的欢迎信息
+    if (messages.value.length === 0) {
+      let welcomeMessage: Message
+      
+      try {
+        if (!systemStatus.value.ollama) {
+          // 检查是否有任何可用的提供商
+          const hasAvailableProvider = llmManager.availableProviders.value.some(p => p.isAvailable)
+          
+          if (!hasAvailableProvider) {
+            // 没有可用的提供商
+            welcomeMessage = MessageFactory.createAssistantMessage(
+              `👋 欢迎使用 Bor 智能体中枢！
+
+**系统状态：**
+- LLM 服务：❌ 未连接
+
+**开始使用：**
+1. 说"配置 LLM"来设置模型提供商
+2. 或访问配置页面进行详细设置
+
+点击下方"🔧 打开配置"按钮开始配置。`
+            )
+          } else if (!llmManager.currentModel.value) {
+            // 有可用提供商但没有选择模型
+            const currentProvider = llmManager.availableProviders.value.find(p => p.id === llmManager.currentProvider.value)
+            const providerName = currentProvider?.name || llmManager.currentProvider.value || '未知提供商'
+            
+            welcomeMessage = MessageFactory.createAssistantMessage(
+              `👋 欢迎使用 Bor 智能体中枢！
+
+**系统状态：**
+- ${providerName} 服务：✅ 已连接
+- 当前模型：❌ 未选择
+
+**下一步：**
+1. 说"配置 LLM"来选择模型
+2. 或直接开始对话，系统将自动选择默认模型
+
+点击下方"🔧 打开配置"按钮选择模型。`
+            )
+          } else {
+            // 一切正常
+            const currentProvider = llmManager.availableProviders.value.find(p => p.id === llmManager.currentProvider.value)
+            const providerName = currentProvider?.name || llmManager.currentProvider.value || '未知提供商'
+            
+            welcomeMessage = MessageFactory.createAssistantMessage(
+              `👋 欢迎使用 Bor 智能体中枢！
+
+**当前状态：**
+- ${providerName} 服务：✅ 已连接
+- 当前模型：${systemStatus.value.currentModel}
+- 可用模型：${systemStatus.value.availableModels.length} 个
+
+您可以直接开始对话，或说"配置 LLM"进行更多设置。`
+            )
+          }
+        } else if (systemStatus.value.availableModels.length === 0) {
+          // Ollama 已连接但没有模型
+          const currentProvider = llmManager.availableProviders.value.find(p => p.id === llmManager.currentProvider.value)
+          const providerName = currentProvider?.name || llmManager.currentProvider.value || 'Ollama'
+          
+          if (llmManager.currentProvider.value === 'ollama') {
+            welcomeMessage = MessageFactory.createAssistantMessage(
+              `👋 欢迎使用 Bor 智能体中枢！
+
+**系统状态：**
+- ${providerName} 服务：✅ 已连接
+- 可用模型：❌ 暂无
+
+**开始使用：**
+请先拉取一个模型，例如：
+\`\`\`bash
+ollama pull llama2
+# 或者
+ollama pull qwen:7b
+\`\`\`
+
+然后说"刷新模型列表"来重新检测。`
+            )
+          } else {
+            welcomeMessage = MessageFactory.createAssistantMessage(
+              `👋 欢迎使用 Bor 智能体中枢！
+
+**系统状态：**
+- ${providerName} 服务：✅ 已连接
+- 可用模型：❌ 暂无
+
+**开始使用：**
+请在LLM配置中添加模型，或检查服务配置是否正确。
+
+您可以说"打开配置"来管理模型设置。`
+            )
+          }
+        } else {
+          // 一切正常
+          const currentProvider = llmManager.availableProviders.value.find(p => p.id === llmManager.currentProvider.value)
+          const providerName = currentProvider?.name || llmManager.currentProvider.value || '未知提供商'
+          
+          welcomeMessage = MessageFactory.createAssistantMessage(
+            `👋 欢迎使用 Bor 智能体中枢！
+
+**当前状态：**
+- ${providerName} 服务：✅ 已连接
+- 当前模型：${systemStatus.value.currentModel}
+- 可用模型：${systemStatus.value.availableModels.length} 个
+
+您可以直接开始对话，或说"检查系统状态"查看详细信息。`
+          )
+        }
+      } catch (welcomeError) {
+        console.error('生成欢迎信息失败:', welcomeError)
+        // 使用最基础的欢迎信息
+        welcomeMessage = MessageFactory.createAssistantMessage(
+          `👋 欢迎使用 Bor 智能体中枢！
+
+系统正在初始化，请稍候...
+
+如果长时间没有响应，请说"配置 LLM"来检查设置。`
+        )
+      }
+      
+      messages.value.push(welcomeMessage)
+      
+      // 更新建议列表
+      try {
+        suggestions.value = getSuggestions()
+      } catch (suggestionError) {
+        console.error('生成建议列表失败:', suggestionError)
+        suggestions.value = ['你好', '配置 LLM', '检查系统状态']
+      }
+    }
+  } catch (error) {
+    console.error('聊天视图初始化失败:', error)
+    // 确保即使出错也能显示基本界面
+    if (messages.value.length === 0) {
+      const errorMessage = MessageFactory.createAssistantMessage(
+        `❌ 系统初始化遇到问题
+
+请尝试以下操作：
+1. 刷新页面
+2. 说"配置 LLM"检查设置
+3. 检查浏览器控制台错误信息
+
+我们将继续尝试加载系统...`
+      )
+      messages.value.push(errorMessage)
+    }
   }
 })
 </script>
