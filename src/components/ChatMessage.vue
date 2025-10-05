@@ -1,51 +1,68 @@
 <template>
-  <div class="flex" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
-    <div
-      class="rounded-2xl px-4 py-3 break-words"
-      :class="[
-        message.role === 'user' 
-          ? 'bg-primary-blue text-white ml-auto' 
-          : 'glass mr-auto',
-        message.role === 'user' 
-          ? 'max-w-[50%]' 
-          : 'max-w-[80%]'
-      ]"
-    >
-      <!-- 消息内容 -->
-      <div v-if="message.content" class="message-content">
-        <!-- 用户消息显示为纯文本 -->
-        <div v-if="message.role === 'user'" class="user-message">
-          {{ message.content }}
-        </div>
-        <!-- AI消息使用markdown渲染 -->
-        <StreamingMessage 
-          v-else
-          :content="message.content"
-          :is-streaming="isStreaming"
-        />
+  <div class="flex mb-4" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
+    <!-- AI消息：左侧显示，带头像 -->
+    <div v-if="message.role === 'assistant'" class="flex items-start space-x-3 max-w-[85%]">
+      <!-- AI头像 -->
+      <div class="flex-shrink-0 w-8 h-8 rounded-full glass flex items-center justify-center mt-1">
+        <div class="w-4 h-4 bg-gradient-to-br from-primary-blue to-primary-indigo rounded-sm"></div>
       </div>
-      
-      <!-- 附件显示 -->
-      <div v-if="message.attachments && message.attachments.length > 0" class="mt-2 space-y-2">
-        <div
-          v-for="attachment in message.attachments"
-          :key="attachment.name"
-          class="flex items-center space-x-2 text-xs opacity-75"
-        >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
-          </svg>
-          <span>{{ attachment.name }}</span>
+      <!-- AI消息气泡 -->
+      <div class="glass rounded-2xl rounded-tl-md px-4 py-3 break-words">
+        <div v-if="message.content" class="message-content">
+          <StreamingMessage 
+            :content="message.content"
+            :is-streaming="isStreaming"
+          />
+        </div>
+        
+        <!-- 附件显示 -->
+        <div v-if="message.attachments && message.attachments.length > 0" class="mt-2 space-y-2">
+          <div
+            v-for="attachment in message.attachments"
+            :key="attachment.name"
+            class="flex items-center space-x-2 text-xs opacity-75"
+          >
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+            </svg>
+            <span>{{ attachment.name }}</span>
+          </div>
+        </div>
+        
+        <!-- 时间戳 -->
+        <div v-if="showTimestamp" class="text-xs opacity-50 mt-2 text-left">
+          {{ formatTime(message.timestamp) }}
         </div>
       </div>
-      
-      <!-- 时间戳 -->
-      <div
-        v-if="showTimestamp"
-        class="text-xs opacity-50 mt-2"
-        :class="message.role === 'user' ? 'text-right' : 'text-left'"
-      >
-        {{ formatTime(message.timestamp) }}
+    </div>
+    
+    <!-- 用户消息：右侧显示，不带头像 -->
+    <div v-else class="flex items-start justify-end max-w-[70%] ml-auto">
+      <div class="bg-gradient-to-r from-primary-blue to-primary-indigo text-white rounded-2xl rounded-tr-md px-4 py-3 break-words shadow-lg">
+        <div v-if="message.content" class="message-content">
+          <div class="user-message whitespace-pre-wrap">
+            {{ message.content }}
+          </div>
+        </div>
+        
+        <!-- 附件显示 -->
+        <div v-if="message.attachments && message.attachments.length > 0" class="mt-2 space-y-2">
+          <div
+            v-for="attachment in message.attachments"
+            :key="attachment.name"
+            class="flex items-center space-x-2 text-xs opacity-75"
+          >
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+            </svg>
+            <span>{{ attachment.name }}</span>
+          </div>
+        </div>
+        
+        <!-- 时间戳 -->
+        <div v-if="showTimestamp" class="text-xs opacity-75 mt-2 text-right">
+          {{ formatTime(message.timestamp) }}
+        </div>
       </div>
     </div>
   </div>
@@ -102,9 +119,17 @@ const formatTime = (timestamp: number) => {
 </script>
 
 <style scoped>
-/* Markdown 内容样式 */
+/* 用户消息样式 */
+.user-message {
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* AI消息的Markdown内容样式 */
 :deep(.prose) {
   color: inherit;
+  font-size: 0.95em;
+  line-height: 1.6;
 }
 
 :deep(.prose p) {
@@ -124,6 +149,7 @@ const formatTime = (timestamp: number) => {
   padding: 0.2em 0.4em;
   border-radius: 4px;
   font-size: 0.9em;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
 }
 
 :deep(.prose pre) {
@@ -132,6 +158,7 @@ const formatTime = (timestamp: number) => {
   border-radius: 8px;
   overflow-x: auto;
   margin: 0.5em 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 :deep(.prose pre code) {
@@ -148,12 +175,79 @@ const formatTime = (timestamp: number) => {
   margin: 0.25em 0;
 }
 
-/* 用户消息的代码样式 */
-.message-user :deep(.prose code) {
-  background: rgba(255, 255, 255, 0.2);
+:deep(.prose blockquote) {
+  border-left: 3px solid rgba(59, 130, 246, 0.5);
+  padding-left: 1em;
+  margin: 0.5em 0;
+  font-style: italic;
+  opacity: 0.8;
 }
 
-.message-user :deep(.prose pre) {
-  background: rgba(255, 255, 255, 0.2);
+:deep(.prose table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5em 0;
+  font-size: 0.9em;
+}
+
+:deep(.prose th, .prose td) {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 0.5em;
+  text-align: left;
+}
+
+:deep(.prose th) {
+  background: rgba(0, 0, 0, 0.05);
+  font-weight: 600;
+}
+
+/* 深色模式下的样式调整 */
+.dark :deep(.prose code) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dark :deep(.prose pre) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark :deep(.prose th, .prose td) {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark :deep(.prose th) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* 消息动画 */
+.message-content {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 头像动画 */
+.flex-shrink-0 {
+  animation: scaleIn 0.3s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 </style>

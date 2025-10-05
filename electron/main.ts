@@ -3,6 +3,7 @@ import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { MCPHostMain } from '../src/lib/mcp-host/MCPHostMain'
 import type { MCPServerConfig, MCPToolCall } from '../src/lib/mcp-host/types'
+import { electronDatabase } from './database'
 
 // 创建MCP Host实例
 const mcpHost = new MCPHostMain({
@@ -32,9 +33,12 @@ function createWindow(): void {
     minWidth: 800,
     minHeight: 600,
     show: false,
+    frame: true, // 保留系统边框但隐藏标题栏
+    transparent: true, // 保持透明以支持玻璃效果
     autoHideMenuBar: true,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    vibrancy: process.platform === 'darwin' ? 'under-window' : undefined,
+    vibrancy: process.platform === 'darwin' ? 'fullscreen-ui' : undefined, // 恢复强透明效果
+    visualEffectState: process.platform === 'darwin' ? 'active' : undefined,
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),
       sandbox: false,
@@ -101,6 +105,50 @@ async function initializeMCP(): Promise<void> {
   } catch (error) {
     console.error('❌ MCP Host initialization failed:', error)
   }
+}
+
+// 设置数据库IPC处理器
+function setupDatabaseHandlers(): void {
+  // 配置管理
+  ipcMain.handle('db:set-config', (_, key: string, value: any, category?: string) => {
+    return electronDatabase.setConfig(key, value, category)
+  })
+
+  ipcMain.handle('db:get-config', (_, key: string, defaultValue?: any) => {
+    return electronDatabase.getConfig(key, defaultValue)
+  })
+
+  ipcMain.handle('db:get-configs-by-category', (_, category: string) => {
+    return electronDatabase.getConfigsByCategory(category)
+  })
+
+  ipcMain.handle('db:delete-config', (_, key: string) => {
+    return electronDatabase.deleteConfig(key)
+  })
+
+  // 聊天历史管理
+  ipcMain.handle('db:save-chat-message', (_, sessionId: string, role: string, content: string, timestamp: number, metadata?: any) => {
+    return electronDatabase.saveChatMessage(sessionId, role as 'user' | 'assistant' | 'system', content, timestamp, metadata)
+  })
+
+  ipcMain.handle('db:get-chat-history', (_, sessionId: string, limit?: number) => {
+    return electronDatabase.getChatHistory(sessionId, limit)
+  })
+
+  ipcMain.handle('db:get-all-sessions', () => {
+    return electronDatabase.getAllSessions()
+  })
+
+  ipcMain.handle('db:delete-chat-history', (_, sessionId: string) => {
+    return electronDatabase.deleteChatHistory(sessionId)
+  })
+
+  // 数据库统计
+  ipcMain.handle('db:get-stats', () => {
+    return electronDatabase.getStats()
+  })
+
+  console.log('✅ Database IPC handlers registered')
 }
 
 // 设置MCP IPC处理器
@@ -225,6 +273,10 @@ app.whenReady().then(async () => {
   // 设置应用用户模型 ID (Windows)
   app.setAppUserModelId('com.bor.intelligent-agent-hub')
 
+  // 初始化数据库
+  await electronDatabase.initialize()
+  setupDatabaseHandlers()
+
   // 初始化MCP
   await initializeMCP()
   setupMCPHandlers()
@@ -237,16 +289,24 @@ app.whenReady().then(async () => {
   })
 })
 
-// 应用退出前清理MCP资源
+// 应用退出前清理资源
 app.on('before-quit', async () => {
-  if (mcpManager) {
-    console.log('🧹 Cleaning up MCP resources...')
-    try {
-      await mcpManager.close()
-      console.log('✅ MCP resources cleaned up')
-    } catch (error) {
-      console.error('❌ Error cleaning up MCP resources:', error)
-    }
+  console.log('🧹 Cleaning up resources...')
+  
+  // 清理数据库
+  try {
+    electronDatabase.close()
+    console.log('✅ Database resources cleaned up')
+  } catch (error) {
+    console.error('❌ Error cleaning up database resources:', error)
+  }
+
+  // 清理MCP资源
+  try {
+    await mcpHost.cleanup()
+    console.log('✅ MCP resources cleaned up')
+  } catch (error) {
+    console.error('❌ Error cleaning up MCP resources:', error)
   }
 })
 
@@ -266,7 +326,7 @@ ipcMain.handle('get-platform', () => {
 
 // 主题切换处理
 ipcMain.handle('set-theme', (_, theme: 'light' | 'dark' | 'system') => {
-  // 这里可以处理系统级主题切换
+  // 透明窗口不需要设置背景颜色，由CSS控制
   return theme
 })
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen flex flex-col bg-transparent overflow-hidden">
+  <div class="h-full flex flex-col bg-transparent overflow-hidden">
     <!-- 极简聊天界面 - 完全纯净，无任何装饰 -->
     <div class="flex-1 flex flex-col max-w-7xl mx-auto w-full px-4 py-6 min-h-0">
       
@@ -47,7 +47,8 @@
       <div
         v-else
         ref="messagesContainer"
-        class="flex-1 overflow-y-auto custom-scrollbar space-y-6 py-6 min-h-0"
+        class="flex-1 overflow-y-auto space-y-6 py-6 no-drag"
+        style="height: calc(100vh - 200px);"
       >
         <div
           v-for="message in messages"
@@ -792,10 +793,9 @@ const handleFileDrop = (files: File[]) => {
   // 这里将实现文件处理逻辑
 }
 
-// 滚动到底部
+// 滚动到底部 - 简化版本
 const scrollToBottom = () => {
   if (messagesContainer.value) {
-    // 使用 requestAnimationFrame 确保 DOM 更新完成后再滚动
     requestAnimationFrame(() => {
       if (messagesContainer.value) {
         messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
@@ -868,6 +868,26 @@ const setAsDefault = async () => {
 
 onMounted(async () => {
   try {
+    // 初始化主题
+    const savedTheme = localStorage.getItem('bor-theme') || 'light'
+    if (savedTheme === 'dark') {
+      document.documentElement.classList.add('dark')
+      document.documentElement.classList.remove('light')
+    } else {
+      document.documentElement.classList.add('light')
+      document.documentElement.classList.remove('dark')
+    }
+    document.documentElement.setAttribute('data-theme', savedTheme)
+    
+    // 通知Electron主进程设置窗口背景
+    if (window.electronAPI?.setTheme) {
+      try {
+        await window.electronAPI.setTheme(savedTheme)
+      } catch (error) {
+        console.error('设置主题失败:', error)
+      }
+    }
+    
     // 初始化聊天存储
     chatStore.initialize()
     

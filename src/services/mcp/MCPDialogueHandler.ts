@@ -70,8 +70,8 @@ export class MCPDialogueHandler {
                '配置完成后，您就可以通过对话直接使用这些工具了！',
       actions: [{
         type: 'redirect',
-        payload: { url: '#/mcp' },
-        description: '跳转到MCP配置页面'
+        payload: { url: '#/config' },
+        description: '跳转到配置页面的MCP工具标签页'
       }],
       followUpQuestions: [
         '检查MCP状态',

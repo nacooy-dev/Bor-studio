@@ -1,104 +1,186 @@
-# Bor 智能体中枢
+# Bor 智能体中枢 🤖
 
-一个瑞士军刀式的个人智能助手平台，采用"对话即界面"的设计理念，通过自然语言控制所有功能。
+> 瑞士军刀式的个人智能助手平台，通过对话控制一切功能
 
-## 快速开始
+[![Version](https://img.shields.io/badge/version-0.0.4-blue.svg)](https://github.com/your-username/bor-studio)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Electron](https://img.shields.io/badge/Electron-28+-blue.svg)](https://electronjs.org/)
+[![Vue](https://img.shields.io/badge/Vue-3+-green.svg)](https://vuejs.org/)
 
-### 1. 安装依赖
+## ✨ 特性
 
+### 🤖 多LLM提供商支持
+- **OpenRouter** - 访问300+开源和闭源模型
+- **Ollama** - 本地运行开源模型
+- **OpenAI** - GPT系列模型
+- **智能路由** - 自动选择最适合的模型
+
+### 🔧 MCP工具集成
+- **Model Context Protocol** - 标准化的工具协议
+- **文件系统工具** - 读写文件和目录操作
+- **搜索工具** - DuckDuckGo网络搜索
+- **记忆工具** - 信息存储和检索
+- **可扩展架构** - 轻松添加新工具
+
+### 💬 智能对话体验
+- **意图识别** - 自动理解用户需求
+- **上下文感知** - 记住对话历史
+- **流式响应** - 实时显示AI回复
+- **工具调用** - 无缝集成外部工具
+
+### ⚙️ 完整配置管理
+- **LLM配置** - 模型选择和参数调整
+- **MCP服务器管理** - 添加、启动、停止服务器
+- **系统设置** - 主题、自动保存等
+- **数据管理** - 聊天记录导出和清理
+
+## 🚀 快速开始
+
+### 环境要求
+- Node.js 18+
+- npm 或 yarn
+- macOS / Windows / Linux
+
+### 安装步骤
+
+1. **克隆项目**
+```bash
+git clone https://github.com/your-username/bor-studio.git
+cd bor-studio
+```
+
+2. **安装依赖**
 ```bash
 npm install
 ```
 
-### 2. 安装 Ollama（必需）
-
-**方法一：官网下载**
-- 访问 [https://ollama.ai](https://ollama.ai)
-- 下载适合您系统的安装包
-
-**方法二：命令行安装**
+3. **开发模式运行**
 ```bash
-# macOS/Linux
-curl -fsSL https://ollama.ai/install.sh | sh
-
-# Windows (PowerShell)
-iwr -useb https://ollama.ai/install.ps1 | iex
+npm run electron:dev
 ```
 
-### 3. 拉取模型
-
+4. **构建应用**
 ```bash
-# 推荐新手使用的轻量级模型
-ollama pull llama2:7b
-
-# 或者中文优化模型
-ollama pull qwen:7b
-
-# 代码专用模型
-ollama pull codellama:7b
+npm run electron:build
+npm run electron:start
 ```
 
-### 4. 启动应用
+## 📖 使用指南
 
+### 配置LLM提供商
+
+1. 点击"🔧 打开配置"按钮
+2. 选择"LLM 模型"标签页
+3. 选择提供商并配置API密钥
+4. 选择模型并设为默认
+
+### 添加MCP服务器
+
+1. 进入配置页面的"MCP 工具"标签页
+2. 点击"添加服务器"
+3. 选择预设服务器或自定义配置
+4. 启动服务器开始使用工具
+
+### 开始对话
+
+- 直接输入问题开始对话
+- 说"搜索XXX"使用搜索工具
+- 说"读取文件XXX"使用文件系统工具
+- 说"配置LLM"打开配置界面
+
+## 🏗️ 技术架构
+
+### 前端技术栈
+- **Vue 3** - 响应式前端框架
+- **TypeScript** - 类型安全
+- **Tailwind CSS** - 原子化CSS
+- **Pinia** - 状态管理
+- **Vue Router** - 路由管理
+
+### 后端技术栈
+- **Electron** - 跨平台桌面应用
+- **Node.js** - 运行时环境
+- **SQLite** - 本地数据存储
+- **Child Process** - MCP服务器管理
+
+### 核心模块
+```
+src/
+├── components/          # Vue组件
+├── views/              # 页面视图
+├── lib/                # 核心库
+│   ├── llm-manager/    # LLM管理器
+│   └── mcp-host/       # MCP主机
+├── services/           # 业务服务
+└── stores/             # 状态管理
+```
+
+## 🔧 开发指南
+
+### 项目结构
+```
+bor-studio/
+├── src/                # 源代码
+├── electron/           # Electron主进程
+├── dist/               # 构建输出
+├── dist-electron/      # Electron构建输出
+└── scripts/            # 构建脚本
+```
+
+### 开发命令
 ```bash
 # 开发模式
-npm run electron:dev
+npm run dev
 
-# 构建生产版本
+# 构建前端
 npm run build
+
+# 构建Electron
+npm run electron:build
+
+# 启动应用
+npm run electron:start
+
+# 打包应用
+npm run electron:preview
 ```
 
-## 功能特性
+### 添加新的MCP工具
 
-- 🎨 **极简设计**：Apple 风格的纯净界面，无传统菜单和按钮
-- 🤖 **本地 AI**：基于 Ollama 的本地大语言模型，保护隐私
-- 💬 **对话控制**：通过自然语言控制所有功能
-- 📁 **文件支持**：拖拽上传多种文件类型
-- 🔄 **流式响应**：实时打字机效果的 AI 回复
-- ⚡ **智能建议**：根据上下文提供相关建议
+1. 创建MCP服务器配置
+2. 在预设服务器中添加配置
+3. 实现工具调用逻辑
+4. 更新UI界面
 
-## 使用指南
+## 📝 更新日志
 
-### 基础对话
-- 直接输入问题开始对话
-- 支持 Markdown 格式和代码高亮
-- 拖拽文件到输入框进行文件相关操作
+查看 [CHANGELOG.md](CHANGELOG.md) 了解详细的版本更新信息。
 
-### 系统管理
-- `检查系统状态` - 查看 Ollama 和模型状态
-- `刷新模型列表` - 重新检测可用模型
-- `切换模型 [模型名]` - 切换到指定模型
-- `配置 LLM` - 打开模型配置页面
+## 🤝 贡献指南
 
-### 常见问题
+1. Fork 项目
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 打开 Pull Request
 
-**Q: 提示 "Ollama 服务未连接"？**
-A: 请确保 Ollama 已安装并运行，然后说"检查系统状态"重新检测。
+## 📄 许可证
 
-**Q: 提示 "没有可用的模型"？**
-A: 请先拉取一个模型，例如：`ollama pull llama2:7b`
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
 
-**Q: 如何切换模型？**
-A: 说"切换模型 [模型名]"或"使用模型 [模型名]"
+## 🙏 致谢
 
-## 技术架构
+- [Model Context Protocol](https://modelcontextprotocol.io/) - MCP协议标准
+- [Vue.js](https://vuejs.org/) - 前端框架
+- [Electron](https://electronjs.org/) - 桌面应用框架
+- [Tailwind CSS](https://tailwindcss.com/) - CSS框架
 
-- **前端**: Vue 3 + TypeScript + Tailwind CSS
-- **桌面**: Electron
-- **AI**: Ollama (本地大语言模型)
-- **设计**: Apple Design System
+## 📞 联系我们
 
-## 开发计划
+- 项目主页: [GitHub](https://github.com/your-username/bor-studio)
+- 问题反馈: [Issues](https://github.com/your-username/bor-studio/issues)
+- 功能建议: [Discussions](https://github.com/your-username/bor-studio/discussions)
 
-- [x] 基础聊天界面
-- [x] Ollama 集成
-- [ ] 意图识别系统
-- [ ] RAG 知识库
-- [ ] MCP 工具调度
-- [ ] 工作流自动化
-- [ ] 插件系统
-- [ ] 自升级能力
+---
 
-## 许可证
-
-MIT License
+**Bor 智能体中枢** - 让AI成为你的得力助手 🚀

@@ -12,6 +12,25 @@ const mcpAPI = {
   executeTool: (call) => ipcRenderer.invoke('mcp:execute-tool', call)
 }
 
+// 数据库API实现
+const databaseAPI = {
+  // 配置管理
+  setConfig: (key, value, category) => ipcRenderer.invoke('db:set-config', key, value, category),
+  getConfig: (key, defaultValue) => ipcRenderer.invoke('db:get-config', key, defaultValue),
+  getConfigsByCategory: (category) => ipcRenderer.invoke('db:get-configs-by-category', category),
+  deleteConfig: (key) => ipcRenderer.invoke('db:delete-config', key),
+  
+  // 聊天历史管理
+  saveChatMessage: (sessionId, role, content, timestamp, metadata) => 
+    ipcRenderer.invoke('db:save-chat-message', sessionId, role, content, timestamp, metadata),
+  getChatHistory: (sessionId, limit) => ipcRenderer.invoke('db:get-chat-history', sessionId, limit),
+  getAllSessions: () => ipcRenderer.invoke('db:get-all-sessions'),
+  deleteChatHistory: (sessionId) => ipcRenderer.invoke('db:delete-chat-history', sessionId),
+  
+  // 数据库统计
+  getStats: () => ipcRenderer.invoke('db:get-stats')
+}
+
 // 暴露安全的 API 给渲染进程
 const electronAPI = {
   // 应用信息
@@ -35,6 +54,9 @@ const electronAPI = {
   
   // MCP功能
   mcp: mcpAPI,
+  
+  // 数据库功能
+  database: databaseAPI,
   
   // 事件监听
   onThemeChanged: (callback) => {

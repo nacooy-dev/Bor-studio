@@ -18,14 +18,7 @@ const routes: RouteRecordRaw[] = [
       title: '系统配置'
     }
   },
-  {
-    path: '/mcp',
-    name: 'MCPConfig',
-    component: () => import('@/views/MCPConfigView.vue'),
-    meta: {
-      title: 'MCP 工具配置'
-    }
-  }
+
 ]
 
 const router = createRouter({

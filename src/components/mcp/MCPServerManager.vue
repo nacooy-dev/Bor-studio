@@ -90,7 +90,8 @@
     </div>
 
     <!-- 添加服务器对话框 -->
-    <div v-if="showAddDialog" class="dialog-overlay" @click="showAddDialog = false">
+    <div v-if="showAddDialog" class="dialog-overlay">
+      <div class="dialog-backdrop" @click="showAddDialog = false"></div>
       <div class="dialog" @click.stop>
         <div class="dialog-header">
           <h3>添加MCP服务器</h3>
@@ -446,237 +447,647 @@ onMounted(async () => {
 
 <style scoped>
 .mcp-server-manager {
-  @apply p-6 space-y-6;
+  padding: 0;
+  margin: 0;
+  min-height: 600px;
 }
 
 .header {
-  @apply flex items-center justify-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
 }
 
 .header h3 {
-  @apply text-xl font-semibold text-gray-900 dark:text-white;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d1d1f;
+  margin: 0;
 }
 
 .servers-list {
-  @apply space-y-4;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .empty-state {
-  @apply flex flex-col items-center justify-center py-12 text-center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: #8e8e93;
 }
 
 .server-card {
-  @apply bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4;
-  @apply flex items-start justify-between;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: all 0.2s ease;
+}
+
+.server-card:hover {
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
 .server-info {
-  @apply flex-1 space-y-2;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .server-header {
-  @apply flex items-center gap-3;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .server-header h4 {
-  @apply font-medium text-gray-900 dark:text-white;
+  font-weight: 500;
+  color: #1d1d1f;
+  margin: 0;
+  font-size: 16px;
 }
 
 .server-status {
-  @apply flex items-center gap-1 text-sm px-2 py-1 rounded-full;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-weight: 500;
 }
 
 .server-status.stopped {
-  @apply bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300;
+  background: rgba(142, 142, 147, 0.1);
+  color: #8e8e93;
 }
 
 .server-status.starting {
-  @apply bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-300;
+  background: rgba(255, 149, 0, 0.1);
+  color: #ff9500;
 }
 
 .server-status.running {
-  @apply bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300;
+  background: rgba(52, 199, 89, 0.1);
+  color: #34c759;
+}
+
+/* 深色模式适配 */
+:deep(.dark) .header h3,
+.dark .header h3 {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:deep(.dark) .server-card,
+.dark .server-card {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+:deep(.dark) .server-card:hover,
+.dark .server-card:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+:deep(.dark) .server-header h4,
+.dark .server-header h4 {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:deep(.dark) .empty-state,
+.dark .empty-state {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+:deep(.dark) .server-status.stopped,
+.dark .server-status.stopped {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+:deep(.dark) .server-status.starting,
+.dark .server-status.starting {
+  background: rgba(255, 149, 0, 0.2);
+  color: #ff9f0a;
+}
+
+:deep(.dark) .server-status.running,
+.dark .server-status.running {
+  background: rgba(52, 199, 89, 0.2);
+  color: #30d158;
 }
 
 .server-status.error {
-  @apply bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300;
+  background: rgba(255, 59, 48, 0.1);
+  color: #ff3b30;
 }
 
 .status-dot {
-  @apply w-2 h-2 rounded-full bg-current;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .server-description {
-  @apply text-sm text-gray-600 dark:text-gray-400;
+  font-size: 14px;
+  color: #8e8e93;
+  line-height: 1.4;
 }
 
 .server-details {
-  @apply flex flex-wrap gap-4 text-xs text-gray-500 dark:text-gray-400;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 12px;
+  color: #8e8e93;
 }
 
 .detail-item {
-  @apply flex items-center gap-1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .error-message {
-  @apply flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #ff3b30;
+  background: rgba(255, 59, 48, 0.1);
+  padding: 8px;
+  border-radius: 8px;
 }
 
 .server-actions {
-  @apply flex items-center gap-2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .btn-primary, .btn-secondary, .btn-success, .btn-warning, .btn-danger {
-  @apply flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  -webkit-app-region: no-drag;
 }
 
 .btn-primary {
-  @apply bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50;
+  background: rgba(0, 122, 255, 0.8);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: rgba(0, 122, 255, 0.9);
+  transform: translateY(-1px);
 }
 
 .btn-secondary {
-  @apply bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600;
+  background: rgba(0, 0, 0, 0.05);
+  color: #1d1d1f;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
 }
 
 .btn-success {
-  @apply bg-green-600 text-white hover:bg-green-700 disabled:opacity-50;
+  background: rgba(52, 199, 89, 0.8);
+  color: white;
+}
+
+.btn-success:hover {
+  background: rgba(52, 199, 89, 0.9);
+  transform: translateY(-1px);
 }
 
 .btn-warning {
-  @apply bg-yellow-600 text-white hover:bg-yellow-700 disabled:opacity-50;
+  background: rgba(255, 149, 0, 0.8);
+  color: white;
+}
+
+.btn-warning:hover {
+  background: rgba(255, 149, 0, 0.9);
+  transform: translateY(-1px);
 }
 
 .btn-danger {
-  @apply bg-red-600 text-white hover:bg-red-700 disabled:opacity-50;
+  background: rgba(255, 59, 48, 0.8);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: rgba(255, 59, 48, 0.9);
+  transform: translateY(-1px);
+}
+
+/* 深色模式按钮适配 */
+:deep(.dark) .server-status.error,
+.dark .server-status.error {
+  background: rgba(255, 59, 48, 0.2);
+  color: #ff453a;
+}
+
+:deep(.dark) .server-description,
+.dark .server-description {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+:deep(.dark) .server-details,
+.dark .server-details {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+:deep(.dark) .error-message,
+.dark .error-message {
+  color: #ff453a;
+  background: rgba(255, 59, 48, 0.2);
+}
+
+:deep(.dark) .btn-secondary,
+.dark .btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+:deep(.dark) .btn-secondary:hover,
+.dark .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .dialog-overlay {
-  @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 .dialog {
-  @apply bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-hidden;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  max-width: 550px;
+  width: 90%;
+  margin: 16px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .dialog.large {
-  @apply max-w-2xl;
+  max-width: 750px;
+  max-height: 90vh;
 }
 
 .dialog-header {
-  @apply flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .dialog-header h3 {
-  @apply text-lg font-semibold text-gray-900 dark:text-white;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d1d1f;
+  margin: 0;
 }
 
 .close-btn {
-  @apply p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.close-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .dialog-content {
-  @apply p-4 overflow-y-auto max-h-[60vh] space-y-6;
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 .dialog-actions {
-  @apply flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
 }
 
+/* 深色模式对话框适配 */
+:deep(.dark) .dialog,
+.dark .dialog {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+:deep(.dark) .dialog-header,
+.dark .dialog-header {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+:deep(.dark) .dialog-header h3,
+.dark .dialog-header h3 {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:deep(.dark) .close-btn:hover,
+.dark .close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:deep(.dark) .dialog-actions,
+.dark .dialog-actions {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 表单和其他组件样式 */
 .preset-servers h4, .custom-config h4 {
-  @apply text-sm font-medium text-gray-900 dark:text-white mb-3;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1d1d1f;
+  margin: 0 0 12px 0;
 }
 
 .preset-grid {
-  @apply grid grid-cols-1 gap-2;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
 }
 
 .preset-card {
-  @apply flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.5);
+  -webkit-app-region: no-drag;
+}
+
+.preset-card:hover {
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .preset-card.active {
-  @apply border-blue-500 bg-blue-50 dark:bg-blue-900/20;
-}
-
-.preset-icon {
-  @apply flex-shrink-0;
+  border-color: rgba(0, 122, 255, 0.5);
+  background: rgba(0, 122, 255, 0.1);
 }
 
 .preset-info h5 {
-  @apply font-medium text-gray-900 dark:text-white;
+  font-weight: 500;
+  color: #1d1d1f;
+  margin: 0;
 }
 
 .preset-info p {
-  @apply text-sm text-gray-600 dark:text-gray-400;
+  font-size: 12px;
+  color: #8e8e93;
+  margin: 4px 0 0 0;
 }
 
 .form-group {
-  @apply space-y-1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .form-group label {
-  @apply block text-sm font-medium text-gray-700 dark:text-gray-300;
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1d1d1f;
 }
 
 .form-group input[type="text"] {
-  @apply w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md;
-  @apply bg-white dark:bg-gray-700 text-gray-900 dark:text-white;
-  @apply focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #1d1d1f;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.form-group input[type="text"]:focus {
+  outline: none;
+  border-color: rgba(0, 122, 255, 0.5);
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
 }
 
 .form-group input[type="checkbox"] {
-  @apply mr-2;
+  margin-right: 8px;
+  accent-color: rgba(0, 122, 255, 0.8);
+  -webkit-app-region: no-drag;
 }
 
 .tools-list {
-  @apply space-y-4;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .tool-card {
-  @apply border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .tool-header {
-  @apply flex items-center gap-2 flex-wrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
 }
 
 .tool-header h5 {
-  @apply font-medium text-gray-900 dark:text-white;
+  font-weight: 500;
+  color: #1d1d1f;
+  margin: 0;
+}
+
+.tool-category, .risk-level {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 500;
 }
 
 .tool-category {
-  @apply text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300;
-}
-
-.risk-level {
-  @apply text-xs px-2 py-1 rounded-full;
+  background: rgba(0, 122, 255, 0.1);
+  color: #007aff;
 }
 
 .risk-level.low {
-  @apply bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300;
+  background: rgba(52, 199, 89, 0.1);
+  color: #34c759;
 }
 
 .risk-level.medium {
-  @apply bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-300;
+  background: rgba(255, 149, 0, 0.1);
+  color: #ff9500;
 }
 
 .risk-level.high {
-  @apply bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300;
+  background: rgba(255, 59, 48, 0.1);
+  color: #ff3b30;
 }
 
 .tool-description {
-  @apply text-sm text-gray-600 dark:text-gray-400;
+  font-size: 14px;
+  color: #8e8e93;
+  line-height: 1.4;
 }
 
 .tool-schema details {
-  @apply text-xs;
+  font-size: 12px;
 }
 
 .tool-schema summary {
-  @apply cursor-pointer text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300;
+  cursor: pointer;
+  color: #8e8e93;
+  transition: color 0.2s ease;
+}
+
+.tool-schema summary:hover {
+  color: #1d1d1f;
 }
 
 .tool-schema pre {
-  @apply mt-2 p-2 bg-gray-100 dark:bg-gray-700 rounded text-xs overflow-x-auto;
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  font-size: 11px;
+  overflow-x: auto;
+}
+
+/* 深色模式适配 */
+:deep(.dark) .preset-servers h4,
+:deep(.dark) .custom-config h4,
+.dark .preset-servers h4,
+.dark .custom-config h4 {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:deep(.dark) .preset-card,
+.dark .preset-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+:deep(.dark) .preset-card:hover,
+.dark .preset-card:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:deep(.dark) .preset-info h5,
+.dark .preset-info h5 {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:deep(.dark) .preset-info p,
+.dark .preset-info p {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+:deep(.dark) .form-group label,
+.dark .form-group label {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:deep(.dark) .form-group input[type="text"],
+.dark .form-group input[type="text"] {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+:deep(.dark) .tool-card,
+.dark .tool-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+:deep(.dark) .tool-header h5,
+.dark .tool-header h5 {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:deep(.dark) .tool-description,
+.dark .tool-description {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+:deep(.dark) .tool-schema pre,
+.dark .tool-schema pre {
+  background: rgba(255, 255, 255, 0.1);
 }
 </style>
