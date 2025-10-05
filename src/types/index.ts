@@ -108,19 +108,33 @@ export interface ErrorHandling {
 
 // MCP 服务器配置
 export interface MCPServerConfig {
+  id: string
   name: string
-  transport: {
-    type: 'stdio' | 'websocket'
-    command?: string
-    args?: string[]
-    url?: string
-  }
+  description?: string
+  command: string
+  args: string[]
   env?: Record<string, string>
-  autoStart: boolean
-  healthCheck?: {
-    interval: number
-    timeout: number
-  }
+  cwd?: string
+  autoStart?: boolean
+}
+
+// MCP 工具调用
+export interface MCPToolCall {
+  tool: string
+  parameters: Record<string, any>
+  server: string
+  requestId?: string
+}
+
+// MCP API 接口
+export interface MCPAPI {
+  addServer: (config: MCPServerConfig) => Promise<{ success: boolean; error?: string }>
+  startServer: (serverId: string) => Promise<{ success: boolean; error?: string }>
+  stopServer: (serverId: string) => Promise<{ success: boolean; error?: string }>
+  getServers: () => Promise<{ success: boolean; data?: any[]; error?: string }>
+  getTools: (serverId?: string) => Promise<{ success: boolean; data?: any[]; error?: string }>
+  findTool: (name: string, serverId?: string) => Promise<{ success: boolean; data?: any; error?: string }>
+  executeTool: (call: MCPToolCall) => Promise<{ success: boolean; data?: any; error?: string }>
 }
 
 // 工具信息

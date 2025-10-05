@@ -1,6 +1,16 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { MCPHostMain } from '../src/lib/mcp-host/MCPHostMain'
+import type { MCPServerConfig, MCPToolCall } from '../src/lib/mcp-host/types'
+
+// 创建MCP Host实例
+const mcpHost = new MCPHostMain({
+  maxServers: 10,
+  serverTimeout: 30000,
+  toolTimeout: 60000,
+  enableLogging: true
+})
 
 // 获取当前文件的目录路径（ES 模块中的 __dirname 替代方案）
 const __filename = fileURLToPath(import.meta.url)
@@ -11,6 +21,8 @@ const isDev = process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SER
 
 // 主窗口引用
 let mainWindow: BrowserWindow | null = null
+
+// MCP Host 已经是全局实例，不需要额外声明
 
 function createWindow(): void {
   // 创建主窗口
@@ -24,7 +36,7 @@ function createWindow(): void {
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     vibrancy: process.platform === 'darwin' ? 'under-window' : undefined,
     webPreferences: {
-      preload: join(__dirname, 'preload.js'),
+      preload: join(__dirname, 'preload.cjs'),
       sandbox: false,
       nodeIntegration: false,
       contextIsolation: true,
@@ -61,10 +73,161 @@ function createWindow(): void {
   }
 }
 
+// 初始化MCP管理器
+async function initializeMCP(): Promise<void> {
+  try {
+    // MCP Host 事件监听
+    mcpHost.on('server_added', (server) => {
+      console.log(`✅ MCP服务器已添加: ${server.id}`)
+    })
+
+    mcpHost.on('server_started', (server) => {
+      console.log(`🚀 MCP服务器已启动: ${server.id}`)
+    })
+
+    mcpHost.on('server_stopped', (server) => {
+      console.log(`⏹️ MCP服务器已停止: ${server.id}`)
+    })
+
+    mcpHost.on('server_error', (server, error) => {
+      console.error(`❌ MCP服务器错误 ${server.id}:`, error)
+    })
+
+    mcpHost.on('tools_discovered', (server, tools) => {
+      console.log(`🔧 发现工具 ${server.id}:`, tools.map(t => t.name))
+    })
+    
+    console.log('✅ MCP Host initialized')
+  } catch (error) {
+    console.error('❌ MCP Host initialization failed:', error)
+  }
+}
+
+// 设置MCP IPC处理器
+function setupMCPHandlers(): void {
+  // 添加MCP服务器
+  ipcMain.handle('mcp:add-server', async (_, config: MCPServerConfig) => {
+    try {
+      await mcpHost.addServer(config)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  // 启动MCP服务器
+  ipcMain.handle('mcp:start-server', async (_, serverId: string) => {
+    try {
+      await mcpHost.startServer(serverId)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  // 停止MCP服务器
+  ipcMain.handle('mcp:stop-server', async (_, serverId: string) => {
+    try {
+      await mcpHost.stopServer(serverId)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  // 获取所有服务器
+  ipcMain.handle('mcp:get-servers', async () => {
+    try {
+      const servers = mcpHost.getServers()
+      // 清理不能序列化的对象
+      const cleanServers = servers.map(server => ({
+        id: server.id,
+        config: server.config,
+        status: server.status,
+        capabilities: server.capabilities,
+        tools: server.tools,
+        lastError: server.lastError,
+        pid: server.pid,
+        startTime: server.startTime
+        // 不包含 process 和 messageBuffer
+      }))
+      return { success: true, data: cleanServers }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  // 获取所有工具
+  ipcMain.handle('mcp:get-tools', async (_, serverId?: string) => {
+    try {
+      const tools = serverId ? 
+        mcpHost.getServerStatus(serverId)?.tools || [] : 
+        mcpHost.getAllTools()
+      
+      // 确保工具对象可以被序列化
+      const cleanTools = tools.map(tool => ({
+        name: tool.name,
+        description: tool.description,
+        schema: tool.schema,
+        server: tool.server
+      }))
+      
+      return { success: true, data: cleanTools }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  // 执行工具
+  ipcMain.handle('mcp:execute-tool', async (_, call: MCPToolCall) => {
+    try {
+      const result = await mcpHost.executeTool(call)
+      return { success: true, data: result }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  // 查找工具
+  ipcMain.handle('mcp:find-tool', async (_, name: string, serverId?: string) => {
+    try {
+      const tool = mcpHost.findTool(name, serverId)
+      
+      // 清理工具对象
+      const cleanTool = tool ? {
+        name: tool.name,
+        description: tool.description,
+        schema: tool.schema,
+        server: tool.server
+      } : null
+      
+      return { success: true, data: cleanTool }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  // 删除MCP服务器
+  ipcMain.handle('mcp:remove-server', async (_, serverId: string) => {
+    try {
+      await mcpHost.removeServer(serverId)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  console.log('✅ MCP IPC handlers registered')
+}
+
 // 应用准备就绪
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // 设置应用用户模型 ID (Windows)
   app.setAppUserModelId('com.bor.intelligent-agent-hub')
+
+  // 初始化MCP
+  await initializeMCP()
+  setupMCPHandlers()
 
   createWindow()
 
@@ -72,6 +235,19 @@ app.whenReady().then(() => {
     // macOS 上，当点击 dock 图标并且没有其他窗口打开时，重新创建窗口
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+// 应用退出前清理MCP资源
+app.on('before-quit', async () => {
+  if (mcpManager) {
+    console.log('🧹 Cleaning up MCP resources...')
+    try {
+      await mcpManager.close()
+      console.log('✅ MCP resources cleaned up')
+    } catch (error) {
+      console.error('❌ Error cleaning up MCP resources:', error)
+    }
+  }
 })
 
 // 除了 macOS 外，当所有窗口都被关闭时退出应用
@@ -132,7 +308,7 @@ ipcMain.handle('open-config-window', (_, configType: string, params?: any) => {
     titleBarStyle: 'hiddenInset',
     vibrancy: 'under-window',
     webPreferences: {
-      preload: join(__dirname, 'preload.js'),
+      preload: join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
     },

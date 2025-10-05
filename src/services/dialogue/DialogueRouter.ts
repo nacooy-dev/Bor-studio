@@ -1,6 +1,8 @@
 import { IntentRecognizer, IntentType, type IntentResult } from '../intent/IntentRecognizer'
 import { SecureConfigManager } from '../config/SecureConfigManager'
 import { llmManager } from '../../lib/llm-manager'
+import { MCPDialogueHandler } from '../mcp/MCPDialogueHandler'
+import { mcpLLMIntegration } from '../mcp/MCPLLMIntegration'
 import type { Message } from '@/types'
 
 // 对话处理器接口
@@ -55,6 +57,7 @@ export class DialogueRouter {
     this.handlers.set(IntentType.THEME_CHANGE, new ThemeChangeHandler(this.configManager))
     this.handlers.set(IntentType.KNOWLEDGE_BASE, new KnowledgeBaseHandler())
     this.handlers.set(IntentType.WORKFLOW_CREATION, new WorkflowHandler())
+    this.handlers.set(IntentType.MCP_MANAGEMENT, new MCPManagementHandler())
     this.handlers.set(IntentType.HELP_REQUEST, new HelpHandler())
 
     // 默认处理器
@@ -571,18 +574,107 @@ class HelpHandler implements DialogueHandler {
   }
 }
 
-// 通用对话处理器
+// MCP管理处理器
+class MCPManagementHandler implements DialogueHandler {
+  private mcpDialogueHandler: MCPDialogueHandler
+
+  constructor() {
+    this.mcpDialogueHandler = new MCPDialogueHandler()
+  }
+
+  canHandle(intent: IntentResult): boolean {
+    return intent.confidence > 0.4
+  }
+
+  async handle(userInput: string, intent: IntentResult, context: DialogueContext): Promise<DialogueResponse> {
+    try {
+      const mcpResponse = await this.mcpDialogueHandler.handleMCPDialogue(userInput, context.conversationHistory)
+      
+      return {
+        message: mcpResponse.message,
+        actions: mcpResponse.actions,
+        followUpQuestions: mcpResponse.followUpQuestions,
+        metadata: {
+          mcpHandled: true,
+          requiresLLM: mcpResponse.requiresLLM || false
+        }
+      }
+    } catch (error) {
+      console.error('MCP对话处理失败:', error)
+      return {
+        message: '❌ MCP工具处理遇到问题，请稍后重试。\n\n您可以说"MCP帮助"了解更多功能。',
+        followUpQuestions: [
+          'MCP帮助',
+          '检查MCP状态'
+        ]
+      }
+    }
+  }
+}
+
+// 通用对话处理器 - 集成MCP工具调用
 class GeneralChatHandler implements DialogueHandler {
+  constructor() {
+    // 初始化MCP集成
+    this.initializeMCPIntegration()
+  }
+
+  private async initializeMCPIntegration() {
+    try {
+      await mcpLLMIntegration.initialize()
+      console.log('✅ MCP-LLM集成初始化完成')
+    } catch (error) {
+      console.error('❌ MCP-LLM集成初始化失败:', error)
+    }
+  }
+
   canHandle(intent: IntentResult): boolean {
     return true // 总是可以处理
   }
 
   async handle(userInput: string, intent: IntentResult, context: DialogueContext): Promise<DialogueResponse> {
+    // 检测是否包含工具调用请求
+    const toolCallRequest = mcpLLMIntegration.detectToolCall(userInput)
+    
+    if (toolCallRequest) {
+      console.log('🔧 检测到工具调用请求:', toolCallRequest)
+      
+      // 执行工具调用
+      const toolResult = await mcpLLMIntegration.executeToolCall(toolCallRequest)
+      
+      // 格式化结果
+      const resultMessage = mcpLLMIntegration.formatToolResult(toolResult)
+      
+      return {
+        message: resultMessage,
+        metadata: {
+          toolCall: true,
+          toolName: toolCallRequest.tool,
+          toolResult: toolResult,
+          requiresLLM: false // 工具调用结果不需要再经过LLM
+        },
+        followUpQuestions: toolResult.success ? [
+          '继续使用工具',
+          '查看工具历史',
+          '返回对话'
+        ] : [
+          '重试工具调用',
+          '查看可用工具',
+          '获取帮助'
+        ]
+      }
+    }
+
+    // 构建包含工具信息的系统提示
+    const toolAwarePrompt = mcpLLMIntegration.buildToolAwareSystemPrompt()
+    
     return {
       message: '', // 空消息，表示需要转发给LLM处理
       metadata: {
         requiresLLM: true,
-        originalInput: userInput
+        originalInput: userInput,
+        systemPrompt: toolAwarePrompt, // 注入工具信息到系统提示
+        mcpToolsAvailable: mcpLLMIntegration.getAvailableTools().length > 0
       }
     }
   }

@@ -1,6 +1,8 @@
 <template>
   <div class="streaming-message">
-    <div class="message-content" v-html="renderedContent"></div>
+    <!-- 使用智能内容渲染器 -->
+    <ContentRenderer :content="displayContent" />
+    
     <div v-if="isStreaming" class="streaming-indicator">
       <div class="cursor-blink">|</div>
     </div>
@@ -9,7 +11,7 @@
 
 <script setup lang="ts">
 import { computed, watch, ref } from 'vue'
-import { marked } from 'marked'
+import ContentRenderer from './ContentRenderer.vue'
 
 interface Props {
   content: string
@@ -45,14 +47,11 @@ const animateText = async (targetContent: string) => {
   isAnimating.value = false
 }
 
-// 渲染内容
-const renderedContent = computed(() => {
-  if (!displayContent.value) return ''
-  
-  return marked(displayContent.value, {
-    breaks: true,
-    gfm: true,
-  })
+// 调试日志
+watch(displayContent, (newContent) => {
+  if (newContent) {
+    console.log('StreamingMessage: 内容更新:', newContent.substring(0, 100) + '...')
+  }
 })
 
 // 监听内容变化，实现打字机效果
@@ -88,35 +87,8 @@ watch(() => props.content, (newContent) => {
   51%, 100% { opacity: 0; }
 }
 
-/* 继承父组件的 prose 样式 */
-:deep(.prose) {
-  color: inherit;
-}
-
-:deep(.prose p) {
-  margin: 0.5em 0;
-}
-
-:deep(.prose p:first-child) {
-  margin-top: 0;
-}
-
-:deep(.prose p:last-child) {
-  margin-bottom: 0;
-}
-
-:deep(.prose code) {
-  background: rgba(0, 0, 0, 0.1);
-  padding: 0.2em 0.4em;
-  border-radius: 4px;
-  font-size: 0.9em;
-}
-
-:deep(.prose pre) {
-  background: rgba(0, 0, 0, 0.1);
-  padding: 1em;
-  border-radius: 8px;
-  overflow-x: auto;
-  margin: 0.5em 0;
+/* 流式消息容器样式 */
+.streaming-message {
+  @apply w-full;
 }
 </style>

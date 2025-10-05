@@ -24,6 +24,10 @@ export enum IntentType {
   WORKFLOW_EXECUTION = 'workflow_execution',
   WORKFLOW_MANAGEMENT = 'workflow_management',
   
+  // MCP工具相关
+  MCP_MANAGEMENT = 'mcp_management',
+  MCP_TOOL_EXECUTION = 'mcp_tool_execution',
+  
   // 工具调用相关
   TOOL_CALL = 'tool_call',
   FILE_OPERATION = 'file_operation',
@@ -82,6 +86,29 @@ export class IntentRecognizer {
     this.keywords.set(IntentType.WORKFLOW_CREATION, [
       '创建工作流', '新建工作流', '设置自动化', '创建定时任务',
       '自动化任务', '批处理任务', '工作流管理'
+    ])
+
+    // MCP管理相关
+    this.keywords.set(IntentType.MCP_MANAGEMENT, [
+      'mcp', 'MCP', '工具管理', '管理mcp', '管理工具', 'mcp工具',
+      '检查mcp状态', 'mcp状态', '工具状态', '添加工具', '启动工具',
+      '打开mcp配置', 'mcp配置', '配置mcp', '管理mcp工具',
+      '添加文件系统工具', '添加搜索工具', '添加数据库工具',
+      '添加duckduckgo搜索工具', '添加网络研究工具', '添加网页获取工具',
+      '添加时间服务器', '删除服务器', '删除duckduckgo服务器',
+      '启动文件系统', '启动搜索', '启动数据库', '启动duckduckgo', 
+      '启动time server', '启动时间服务器', '启动time', '启动server',
+      '启动file system', '启动file', '启动system',
+      '停止服务器', '停止time server', '停止file system', 'mcp帮助',
+      '有什么工具', '工具列表', '可用工具', 'mcp服务器', '添加mcp服务器',
+      'time server', 'file system', 'duckduckgo search', 'file', 'system'
+    ])
+
+    // MCP工具执行
+    this.keywords.set(IntentType.MCP_TOOL_EXECUTION, [
+      '帮我读取', '帮我写入', '帮我搜索', '帮我查找', '帮我创建',
+      '读取文件', '写入文件', '搜索信息', '查找信息', '列出文件',
+      '创建文件', '删除文件', '修改文件', '执行工具'
     ])
 
     // 工具调用相关
@@ -156,6 +183,8 @@ export class IntentRecognizer {
       [IntentType.WORKFLOW_CREATION]: ['创建工作流', '新建工作流', '设置自动化'],
       [IntentType.WORKFLOW_EXECUTION]: ['执行', '运行'],
       [IntentType.WORKFLOW_MANAGEMENT]: ['管理', '工作流管理'],
+      [IntentType.MCP_MANAGEMENT]: ['mcp', '工具管理', '管理mcp', 'mcp状态', '检查mcp状态', 'mcp服务器', '添加mcp服务器', '启动', '停止', 'server', 'time', 'file', 'system'],
+      [IntentType.MCP_TOOL_EXECUTION]: ['帮我读取', '帮我搜索', '执行工具'],
       [IntentType.TOOL_CALL]: ['工具', '调用'],
       [IntentType.FILE_OPERATION]: ['文件'],
       [IntentType.WEB_SEARCH]: ['搜索', '查找'],
@@ -181,6 +210,15 @@ export class IntentRecognizer {
           matchedPhrases.push(phrase)
           bestMatchScore = Math.max(bestMatchScore, phraseScore)
         }
+      }
+      
+      // 为MCP_MANAGEMENT添加特殊调试
+      if (intentType === IntentType.MCP_MANAGEMENT && matchedPhrases.length > 0) {
+        console.log(`🔍 MCP_MANAGEMENT匹配:`, {
+          matchedPhrases,
+          bestMatchScore,
+          intentType
+        })
       }
 
       if (matchedPhrases.length > 0) {
@@ -357,6 +395,8 @@ export class IntentRecognizer {
       [IntentType.WORKFLOW_CREATION]: '工作流创建',
       [IntentType.WORKFLOW_EXECUTION]: '工作流执行',
       [IntentType.WORKFLOW_MANAGEMENT]: '工作流管理',
+      [IntentType.MCP_MANAGEMENT]: 'MCP工具管理',
+      [IntentType.MCP_TOOL_EXECUTION]: 'MCP工具执行',
       [IntentType.TOOL_CALL]: '工具调用',
       [IntentType.FILE_OPERATION]: '文件操作',
       [IntentType.WEB_SEARCH]: '网络搜索',

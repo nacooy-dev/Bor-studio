@@ -11,9 +11,15 @@
           : 'max-w-[80%]'
       ]"
     >
-      <!-- 消息内容 - 使用流式渲染 -->
+      <!-- 消息内容 -->
       <div v-if="message.content" class="message-content">
+        <!-- 用户消息显示为纯文本 -->
+        <div v-if="message.role === 'user'" class="user-message">
+          {{ message.content }}
+        </div>
+        <!-- AI消息使用markdown渲染 -->
         <StreamingMessage 
+          v-else
           :content="message.content"
           :is-streaming="isStreaming"
         />

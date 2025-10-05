@@ -37,6 +37,8 @@
             >
               🔧 打开配置
             </button>
+            
+
           </div>
         </div>
       </div>
@@ -85,6 +87,8 @@
         />
       </div>
     </div>
+
+
   </div>
 </template>
 
@@ -95,8 +99,10 @@ import { useChatStore } from '@/stores/chat'
 import { llmManager } from '@/lib/llm-manager'
 import { DialogueRouter } from '@/services/dialogue/DialogueRouter'
 import { MessageFactory } from '@/utils/messageFactory'
+import { mcpService } from '@/services/mcp'
 import ChatMessage from '@/components/ChatMessage.vue'
 import ChatInput from '@/components/ChatInput.vue'
+
 import type { Message } from '@/types'
 
 const $router = useRouter()
@@ -114,17 +120,19 @@ const systemStatus = ref({
   availableModels: [] as string[]
 })
 
+
+
 // 从 store 获取消息
 const messages = ref<Message[]>([])
 
 // 建议快捷指令 - 根据系统状态动态调整
 const getSuggestions = () => {
   if (!systemStatus.value.ollama) {
-    return ['检查系统状态', '配置 LLM', '如何安装 Ollama？']
+    return ['检查系统状态', '配置 LLM', '如何安装 Ollama？', '检查MCP状态']
   } else if (systemStatus.value.availableModels.length === 0) {
-    return ['刷新模型列表', '如何拉取模型？', '检查系统状态']
+    return ['刷新模型列表', '如何拉取模型？', '检查系统状态', '添加文件系统工具']
   } else {
-    return ['你好', '帮我写代码', '检查系统状态', '配置 LLM']
+    return ['你好', '帮我写代码', '检查系统状态', '配置 LLM', '有什么工具可用']
   }
 }
 
@@ -322,8 +330,21 @@ const handleLLMResponse = async (userInput: string, dialogueResponse?: any) => {
       messageCount: conversationHistory.length
     })
 
+    // 构建包含MCP工具信息的消息历史
+    let enhancedHistory = [...conversationHistory]
+    
+    // 如果有MCP工具可用，添加系统提示
+    if (dialogueResponse?.metadata?.systemPrompt) {
+      enhancedHistory.unshift({
+        id: 'mcp-system-prompt',
+        role: 'system',
+        content: dialogueResponse.metadata.systemPrompt,
+        timestamp: Date.now()
+      })
+    }
+
     // 调用 LLM
-    const response = await llmManager.chat(conversationHistory, {
+    const response = await llmManager.chat(enhancedHistory, {
       onStream: (chunk: string) => {
         // 找到消息在数组中的索引并更新
         const messageIndex = messages.value.findIndex(m => m.id === assistantMessage.id)
@@ -344,6 +365,76 @@ const handleLLMResponse = async (userInput: string, dialogueResponse?: any) => {
       messages.value[messageIndex].content = response
     }
 
+    // 检查LLM响应中是否包含工具调用
+    const llmResponseContent = messages.value[messageIndex]?.content || response || ''
+    console.log('🔍 检查LLM响应中的工具调用:', llmResponseContent.substring(0, 200) + '...')
+    
+    const { mcpLLMIntegration } = await import('@/services/mcp/MCPLLMIntegration')
+    const toolCallRequest = mcpLLMIntegration.detectToolCall(llmResponseContent)
+    
+    if (toolCallRequest) {
+      console.log('🔧 检测到MCP工具调用请求:', toolCallRequest)
+
+      // 执行工具调用
+      const toolResult = await mcpLLMIntegration.executeToolCall(toolCallRequest)
+      
+      if (toolResult.success) {
+        console.log('✅ MCP工具调用成功:', toolResult.result)
+        
+        // 自动让LLM总结工具结果
+        const summaryPrompt = `请根据以下工具执行结果，生成一个用户友好的总结回复：
+
+工具名称：${toolResult.toolName}
+用户原始查询：${userInput}
+工具执行结果：
+${JSON.stringify(toolResult.result, null, 2)}
+
+请将结果整理成易读的格式：
+1. 如果是搜索结果，请提取关键信息并用表格展示，但要注意：
+   - 表格列数不要超过4列
+   - URL链接要简化显示（只显示域名或简短描述）
+   - 内容要简洁，避免过长的文本
+2. 如果是天气信息，请整理成结构化的天气报告
+3. 如果是新闻信息，请总结要点
+4. 使用markdown格式，让信息更清晰易读
+5. 表格中的长URL请用简短的链接文本替代
+6. 直接返回整理后的内容，不要包含"根据工具执行结果"等前缀
+
+请用中文回复，语言自然流畅。`
+
+        // 调用LLM生成总结（不使用流式输出，等待完整结果）
+        console.log('🔄 开始生成工具结果总结...')
+        const summaryResponse = await llmManager.chat([
+          { role: 'user', content: summaryPrompt }
+        ], {
+          temperature: 0.3,
+          maxTokens: 2000
+          // 注意：这里不使用onStream，确保获得完整响应
+        })
+        
+        console.log('📝 总结生成完成:', summaryResponse?.substring(0, 100) + '...')
+        
+        if (summaryResponse) {
+          // 添加LLM总结的结果到对话中
+          const summaryMessage = MessageFactory.createAssistantMessage(summaryResponse)
+          messages.value.push(summaryMessage)
+        } else {
+          // 如果总结失败，显示原始结果
+          const toolResultMessage = `工具 ${toolResult.toolName} 执行结果：${JSON.stringify(toolResult.result)}`
+          const resultMessage = MessageFactory.createAssistantMessage(toolResultMessage)
+          messages.value.push(resultMessage)
+        }
+      } else {
+        console.error('❌ MCP工具调用失败:', toolResult.error)
+        
+        // 添加错误信息到对话中
+        const errorMessage = MessageFactory.createAssistantMessage(`工具调用失败：${toolResult.error}`)
+        messages.value.push(errorMessage)
+      }
+    } else {
+      console.log('ℹ️ LLM响应中未检测到工具调用。')
+    }
+
   } catch (error) {
     console.error('LLM 调用失败:', error)
     const messageIndex = messages.value.findIndex(m => m.id === assistantMessage.id)
@@ -354,6 +445,46 @@ const handleLLMResponse = async (userInput: string, dialogueResponse?: any) => {
     streamingMessageId.value = null
   }
 }
+
+// 检查LLM响应中的工具调用
+const checkLLMResponseForToolCalls = async (llmResponse: string) => {
+  try {
+    console.log('🔍 检查LLM响应中的工具调用:', llmResponse.substring(0, 200) + '...')
+    
+    // 导入MCP集成服务
+    const { mcpLLMIntegration } = await import('@/services/mcp/MCPLLMIntegration')
+    
+    // 检测工具调用请求
+    const toolCallRequest = mcpLLMIntegration.detectToolCall(llmResponse)
+    if (!toolCallRequest) {
+      console.log('ℹ️ LLM响应中未检测到工具调用')
+      return
+    }
+
+    console.log('🔧 在LLM响应中检测到工具调用请求:', toolCallRequest)
+
+    // 执行工具调用
+    const toolResult = await mcpLLMIntegration.executeToolCall(toolCallRequest)
+    
+    // 创建工具执行结果消息
+    const toolResultMessage = mcpLLMIntegration.formatToolResult(toolResult)
+    
+    // 添加工具执行结果到对话中
+    const resultMessage = MessageFactory.createAssistantMessage(toolResultMessage)
+    messages.value.push(resultMessage)
+    
+    // 滚动到底部
+    await nextTick()
+    scrollToBottom()
+    
+  } catch (error) {
+    console.error('❌ 检查LLM响应工具调用失败:', error)
+  }
+}
+
+
+
+
 
 // 执行对话动作
 const executeDialogueActions = async (actions: any[]) => {
@@ -624,6 +755,8 @@ ollama pull deepseek-coder:6.7b
     messages.value.push(pullMessage)
     return true
   }
+
+
 
   return false
 }
