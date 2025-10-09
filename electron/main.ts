@@ -2,16 +2,29 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { MCPHostMain } from '../src/lib/mcp-host/MCPHostMain'
+import { StandardMCPAdapter } from '../src/lib/mcp-host/StandardMCPAdapter'
 import type { MCPServerConfig, MCPToolCall } from '../src/lib/mcp-host/types'
 import { electronDatabase } from './database'
 
-// 创建MCP Host实例
-const mcpHost = new MCPHostMain({
-  maxServers: 10,
-  serverTimeout: 30000,
-  toolTimeout: 60000,
-  enableLogging: true
-})
+// MCP 实现选择 - 可以通过环境变量或配置切换
+const USE_STANDARD_MCP = process.env.USE_STANDARD_MCP === 'false' ? false : true // 默认使用标准 MCP
+
+// 创建MCP Host实例（支持两种实现）
+const mcpHost = USE_STANDARD_MCP 
+  ? new StandardMCPAdapter({
+      maxServers: 10,
+      serverTimeout: 30000,
+      toolTimeout: 60000,
+      enableLogging: true
+    })
+  : new MCPHostMain({
+      maxServers: 10,
+      serverTimeout: 30000,
+      toolTimeout: 60000,
+      enableLogging: true
+    })
+
+console.log(`🔧 使用 ${USE_STANDARD_MCP ? '标准' : '自建'} MCP 实现`)
 
 // 获取当前文件的目录路径（ES 模块中的 __dirname 替代方案）
 const __filename = fileURLToPath(import.meta.url)

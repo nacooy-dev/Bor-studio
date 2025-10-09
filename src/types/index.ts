@@ -110,7 +110,7 @@ export interface ErrorHandling {
 export interface MCPServerConfig {
   id: string
   name: string
-  description?: string
+  description: string
   command: string
   args: string[]
   env?: Record<string, string>
@@ -131,6 +131,7 @@ export interface MCPAPI {
   addServer: (config: MCPServerConfig) => Promise<{ success: boolean; error?: string }>
   startServer: (serverId: string) => Promise<{ success: boolean; error?: string }>
   stopServer: (serverId: string) => Promise<{ success: boolean; error?: string }>
+  removeServer: (serverId: string) => Promise<{ success: boolean; error?: string }>
   getServers: () => Promise<{ success: boolean; data?: any[]; error?: string }>
   getTools: (serverId?: string) => Promise<{ success: boolean; data?: any[]; error?: string }>
   findTool: (name: string, serverId?: string) => Promise<{ success: boolean; data?: any; error?: string }>

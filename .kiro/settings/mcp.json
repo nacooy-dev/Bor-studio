@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "obsidian": {
+      "command": "uvx",
+      "args": ["obsidian-mcp"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "OBSIDIAN_VAULT_PATH": "/Users/lvyun/Nextcloud2/奈山堂语2"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "mcp_obsidian_list_notes_tool",
+        "mcp_obsidian_read_note_tool",
+        "mcp_obsidian_create_note_tool",
+        "mcp_obsidian_update_note_tool",
+        "mcp_obsidian_search_notes_tool",
+        "mcp_obsidian_get_note_info_tool",
+        "mcp_obsidian_search_by_date_tool",
+        "mcp_obsidian_list_tags_tool"
+      ]
+    }
+  }
+}
