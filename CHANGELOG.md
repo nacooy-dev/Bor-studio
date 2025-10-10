@@ -21,6 +21,12 @@
 - **标准MCP SDK**: 使用官方`@modelcontextprotocol/sdk`
 - **模块化设计**: 清晰的代码结构，易于维护和扩展
 
+### 🐛 关键修复 (相比v0.0.5)
+- **Preload脚本修复**: 解决了ES模块兼容性问题，使用正确的CommonJS格式
+- **MCP服务启动**: 修复了Electron环境中MCP服务无法启动的问题
+- **API暴露**: 确保`window.electronAPI`正确暴露给渲染进程
+- **构建流程**: 优化了构建过程，确保preload脚本正确复制
+
 ### 📚 文档和工具
 - **完整文档**: README.md, DEVELOPMENT.md, 项目状态文档
 - **自动化设置**: 一键环境设置脚本（Linux/macOS/Windows）

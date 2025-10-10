@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "vite",
-    "electron:build": "vite build",
+    "electron:build": "vite build && cp electron/preload-fixed.cjs dist-electron/preload-fixed.cjs",
     "electron:start": "npm run electron:build && node scripts/start-electron.js",
     "electron:preview": "npm run electron:build && electron-builder --publish=never",
     "setup": "bash scripts/setup.sh",
