@@ -119,7 +119,7 @@ export class StandardMCPAdapter extends EventEmitter {
         command: server.config.command,
         args: server.config.args,
         env: { ...process.env, ...server.config.env },
-        stderr: 'pipe'
+        cwd: server.config.cwd || process.cwd()
       })
 
       server.client = client

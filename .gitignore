@@ -45,6 +45,7 @@ pids
 
 # Coverage directory used by tools like istanbul
 coverage/
+*.lcov
 
 # nyc test coverage
 .nyc_output
@@ -57,12 +58,6 @@ jspm_packages/
 
 # Optional eslint cache
 .eslintcache
-
-# Microbundle cache
-.rpt2_cache/
-.rts2_cache_cjs/
-.rts2_cache_es/
-.rts2_cache_umd/
 
 # Optional REPL history
 .node_repl_history
@@ -102,20 +97,23 @@ jspm_packages/
 app/
 out/
 
-# Database
+# Database files
 *.db
 *.sqlite
 *.sqlite3
+
+# Test files
+test-results/
+playwright-report/
+playwright/.cache/
 
 # Temporary files
 tmp/
 temp/
 
-# Local configuration
-config/local.json
-.env.local
+# User-specific configuration (keep structure but ignore sensitive data)
+.kiro/settings/api-keys.json
+.kiro/settings/user-config.json
 
-# Test files
-test-results/
-playwright-report/
-test-results.xml
+# Keep MCP configuration template
+!.kiro/settings/mcp.json

@@ -1,162 +1,134 @@
-# Bor 智能体中枢 🤖
+# Bor 智能体中枢
 
-> 瑞士军刀式的个人智能助手平台，通过对话控制一切功能
-
-[![Version](https://img.shields.io/badge/version-0.0.4-blue.svg)](https://github.com/your-username/bor-studio)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Electron](https://img.shields.io/badge/Electron-28+-blue.svg)](https://electronjs.org/)
-[![Vue](https://img.shields.io/badge/Vue-3+-green.svg)](https://vuejs.org/)
+瑞士军刀式的个人智能助手平台，集成多种AI模型和MCP工具，提供强大的对话和自动化能力。
 
 ## ✨ 特性
 
-### 🤖 多LLM提供商支持
-- **OpenRouter** - 访问300+开源和闭源模型
-- **Ollama** - 本地运行开源模型
-- **OpenAI** - GPT系列模型
-- **智能路由** - 自动选择最适合的模型
-
-### 🔧 MCP工具集成
-- **Model Context Protocol** - 标准化的工具协议
-- **文件系统工具** - 读写文件和目录操作
-- **搜索工具** - DuckDuckGo网络搜索
-- **记忆工具** - 信息存储和检索
-- **可扩展架构** - 轻松添加新工具
-
-### 💬 智能对话体验
-- **意图识别** - 自动理解用户需求
-- **上下文感知** - 记住对话历史
-- **流式响应** - 实时显示AI回复
-- **工具调用** - 无缝集成外部工具
-
-### ⚙️ 完整配置管理
-- **LLM配置** - 模型选择和参数调整
-- **MCP服务器管理** - 添加、启动、停止服务器
-- **系统设置** - 主题、自动保存等
-- **数据管理** - 聊天记录导出和清理
+- 🤖 **多模型支持**: 支持 OpenAI、Anthropic、Google Gemini、智谱AI、OpenRouter、Ollama 等多种AI模型
+- 🔧 **MCP集成**: 完整支持 Model Context Protocol，可扩展各种工具和服务
+- 💬 **智能对话**: 流式对话体验，支持上下文记忆和多轮对话
+- 🎨 **现代界面**: 基于 Vue 3 + Tailwind CSS 的现代化界面设计
+- 🔒 **本地优先**: 数据本地存储，保护隐私安全
+- ⚡ **高性能**: 基于 Electron + Vite 构建，启动快速，响应迅速
 
 ## 🚀 快速开始
 
 ### 环境要求
-- Node.js 18+
+
+- Node.js 18+ 
 - npm 或 yarn
-- macOS / Windows / Linux
+- Python 3.8+ (用于MCP服务器)
+- uv (Python包管理器，用于MCP服务器)
 
-### 安装步骤
+### 安装依赖
 
-1. **克隆项目**
 ```bash
-git clone https://github.com/your-username/bor-studio.git
-cd bor-studio
-```
+# 克隆项目
+git clone https://github.com/your-username/bor-intelligent-agent-hub.git
+cd bor-intelligent-agent-hub
 
-2. **安装依赖**
-```bash
+# 自动设置环境（推荐）
+npm run setup  # Linux/macOS
+# 或
+npm run setup:windows  # Windows
+
+# 手动安装依赖
 npm install
+
+# 安装 uv (用于MCP服务器)
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-3. **开发模式运行**
+### 开发模式
+
 ```bash
-npm run electron:dev
-```
-
-4. **构建应用**
-```bash
-npm run electron:build
-npm run electron:start
-```
-
-## 📖 使用指南
-
-### 配置LLM提供商
-
-1. 点击"🔧 打开配置"按钮
-2. 选择"LLM 模型"标签页
-3. 选择提供商并配置API密钥
-4. 选择模型并设为默认
-
-### 添加MCP服务器
-
-1. 进入配置页面的"MCP 工具"标签页
-2. 点击"添加服务器"
-3. 选择预设服务器或自定义配置
-4. 启动服务器开始使用工具
-
-### 开始对话
-
-- 直接输入问题开始对话
-- 说"搜索XXX"使用搜索工具
-- 说"读取文件XXX"使用文件系统工具
-- 说"配置LLM"打开配置界面
-
-## 🏗️ 技术架构
-
-### 前端技术栈
-- **Vue 3** - 响应式前端框架
-- **TypeScript** - 类型安全
-- **Tailwind CSS** - 原子化CSS
-- **Pinia** - 状态管理
-- **Vue Router** - 路由管理
-
-### 后端技术栈
-- **Electron** - 跨平台桌面应用
-- **Node.js** - 运行时环境
-- **SQLite** - 本地数据存储
-- **Child Process** - MCP服务器管理
-
-### 核心模块
-```
-src/
-├── components/          # Vue组件
-├── views/              # 页面视图
-├── lib/                # 核心库
-│   ├── llm-manager/    # LLM管理器
-│   └── mcp-host/       # MCP主机
-├── services/           # 业务服务
-└── stores/             # 状态管理
-```
-
-## 🔧 开发指南
-
-### 项目结构
-```
-bor-studio/
-├── src/                # 源代码
-├── electron/           # Electron主进程
-├── dist/               # 构建输出
-├── dist-electron/      # Electron构建输出
-└── scripts/            # 构建脚本
-```
-
-### 开发命令
-```bash
-# 开发模式
+# 启动开发服务器
 npm run dev
 
-# 构建前端
+# 启动Electron应用
+npm run electron:start
+```
+
+### 构建应用
+
+```bash
+# 构建Web版本
 npm run build
 
-# 构建Electron
+# 构建Electron应用
 npm run electron:build
 
-# 启动应用
-npm run electron:start
-
-# 打包应用
+# 打包Electron应用
 npm run electron:preview
 ```
 
-### 添加新的MCP工具
 
-1. 创建MCP服务器配置
-2. 在预设服务器中添加配置
-3. 实现工具调用逻辑
-4. 更新UI界面
 
-## 📝 更新日志
+## 🔧 配置
 
-查看 [CHANGELOG.md](CHANGELOG.md) 了解详细的版本更新信息。
+### AI模型配置
 
-## 🤝 贡献指南
+1. 打开应用设置
+2. 选择要使用的AI提供商
+3. 输入相应的API密钥
+4. 选择模型并保存
+
+支持的提供商：
+- **OpenAI**: GPT-4, GPT-3.5等
+- **Anthropic**: Claude系列
+- **Google**: Gemini系列  
+- **智谱AI**: GLM系列
+- **OpenRouter**: 多种开源模型
+- **Ollama**: 本地模型
+
+### MCP服务器配置
+
+应用内置了多个预设的MCP服务器：
+
+- **Obsidian**: 笔记管理工具
+- **DuckDuckGo Search**: 网络搜索
+- **Memory**: 记忆存储
+- **File System**: 文件系统操作
+- **Sequential Thinking**: 结构化思维
+
+可以在配置页面添加和管理MCP服务器。
+
+## 📁 项目结构
+
+```
+├── electron/                 # Electron主进程代码
+│   ├── main.ts              # 主进程入口
+│   ├── preload-fixed.cjs    # 预加载脚本
+│   └── database.ts          # 数据库管理
+├── src/                     # 渲染进程代码
+│   ├── components/          # Vue组件
+│   ├── views/              # 页面视图
+│   ├── services/           # 服务层
+│   ├── lib/                # 工具库
+│   └── types/              # 类型定义
+├── public/                 # 静态资源
+├── .kiro/                  # 配置文件
+│   └── settings/
+│       └── mcp.json        # MCP配置
+└── dist/                   # 构建输出
+```
+
+## 🛠️ 技术栈
+
+- **前端**: Vue 3, TypeScript, Tailwind CSS
+- **桌面**: Electron
+- **构建**: Vite
+- **状态管理**: Pinia
+- **数据库**: SQLite (better-sqlite3)
+- **MCP**: @modelcontextprotocol/sdk
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
 
 1. Fork 项目
 2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
@@ -170,17 +142,13 @@ npm run electron:preview
 
 ## 🙏 致谢
 
-- [Model Context Protocol](https://modelcontextprotocol.io/) - MCP协议标准
-- [Vue.js](https://vuejs.org/) - 前端框架
-- [Electron](https://electronjs.org/) - 桌面应用框架
-- [Tailwind CSS](https://tailwindcss.com/) - CSS框架
+- [Model Context Protocol](https://modelcontextprotocol.io/) - 强大的工具集成协议
+- [Electron](https://electronjs.org/) - 跨平台桌面应用框架
+- [Vue.js](https://vuejs.org/) - 渐进式JavaScript框架
+- [Tailwind CSS](https://tailwindcss.com/) - 实用优先的CSS框架
 
-## 📞 联系我们
+## 📞 支持
 
-- 项目主页: [GitHub](https://github.com/your-username/bor-studio)
-- 问题反馈: [Issues](https://github.com/your-username/bor-studio/issues)
-- 功能建议: [Discussions](https://github.com/your-username/bor-studio/discussions)
+如果你喜欢这个项目，请给它一个 ⭐️！
 
----
-
-**Bor 智能体中枢** - 让AI成为你的得力助手 🚀
+有问题或建议？请创建一个 [Issue](https://github.com/your-username/bor-intelligent-agent-hub/issues)。

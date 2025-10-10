@@ -53,13 +53,17 @@ function createWindow(): void {
     vibrancy: process.platform === 'darwin' ? 'fullscreen-ui' : undefined, // 恢复强透明效果
     visualEffectState: process.platform === 'darwin' ? 'active' : undefined,
     webPreferences: {
-      preload: join(__dirname, 'preload.cjs'),
+      preload: join(__dirname, 'preload-fixed.cjs'),
       sandbox: false,
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false, // 开发时暂时禁用，方便调试
+      webSecurity: false, // 开发时禁用，避免加载问题
     },
   })
+
+  // 调试preload路径
+  const preloadPath = join(__dirname, 'preload-fixed.cjs')
+  console.log('🔧 Preload path:', preloadPath)
 
   // 窗口准备好后显示
   mainWindow.on('ready-to-show', () => {
@@ -381,7 +385,7 @@ ipcMain.handle('open-config-window', (_, configType: string, params?: any) => {
     titleBarStyle: 'hiddenInset',
     vibrancy: 'under-window',
     webPreferences: {
-      preload: join(__dirname, 'preload.cjs'),
+      preload: join(__dirname, 'preload-fixed.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
     },

@@ -1,6 +1,6 @@
 {
   "name": "bor-intelligent-agent-hub",
-  "version": "0.0.5",
+  "version": "1.0.0",
   "description": "Bor 智能体中枢 - 瑞士军刀式的个人智能助手平台",
   "main": "dist-electron/main.js",
   "type": "module",
@@ -12,6 +12,9 @@
     "electron:build": "vite build",
     "electron:start": "npm run electron:build && node scripts/start-electron.js",
     "electron:preview": "npm run electron:build && electron-builder --publish=never",
+    "setup": "bash scripts/setup.sh",
+    "setup:windows": "powershell -ExecutionPolicy Bypass -File scripts/setup.ps1",
+
     "start": "node test-app.js",
     "test:web": "node scripts/test-web.js",
     "pree2e": "npm run electron:build",
@@ -66,7 +69,6 @@
       "node_modules/**/*"
     ],
     "mac": {
-      "icon": "build/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -78,7 +80,6 @@
       ]
     },
     "win": {
-      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -89,7 +90,6 @@
       ]
     },
     "linux": {
-      "icon": "build/icon.png",
       "target": [
         {
           "target": "AppImage",

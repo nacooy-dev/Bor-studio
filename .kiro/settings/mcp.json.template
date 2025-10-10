@@ -1,0 +1,64 @@
+{
+  "mcpServers": {
+    "obsidian": {
+      "command": "uvx",
+      "args": ["obsidian-mcp"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "OBSIDIAN_VAULT_PATH": "/path/to/your/obsidian/vault"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "mcp_obsidian_list_notes_tool",
+        "mcp_obsidian_read_note_tool",
+        "mcp_obsidian_create_note_tool",
+        "mcp_obsidian_update_note_tool",
+        "mcp_obsidian_search_notes_tool",
+        "mcp_obsidian_get_note_info_tool",
+        "mcp_obsidian_search_by_date_tool",
+        "mcp_obsidian_list_tags_tool"
+      ]
+    },
+    "duckduckgo-search": {
+      "command": "uvx",
+      "args": ["duckduckgo-mcp-server"],
+      "disabled": false,
+      "autoApprove": [
+        "search",
+        "fetch_content"
+      ]
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "disabled": false,
+      "autoApprove": [
+        "create_memory",
+        "search_memories",
+        "update_memory",
+        "delete_memory"
+      ]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/your-username"],
+      "disabled": false,
+      "autoApprove": [
+        "read_file",
+        "write_file",
+        "list_directory",
+        "create_directory"
+      ]
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "disabled": false,
+      "autoApprove": [
+        "create_thinking_session",
+        "add_thought",
+        "get_thinking_session"
+      ]
+    }
+  }
+}

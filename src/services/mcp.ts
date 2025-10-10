@@ -14,6 +14,11 @@ export class MCPService {
   private isElectronEnvironment = false
 
   constructor() {
+    // 延迟检查Electron环境，确保preload脚本已加载
+    this.checkElectronEnvironment()
+  }
+
+  private checkElectronEnvironment() {
     // 检查Electron环境
     this.isElectronEnvironment = typeof window !== 'undefined' &&
       (window as any).electronAPI &&
@@ -21,8 +26,9 @@ export class MCPService {
 
     if (this.isElectronEnvironment) {
       this.api = (window as any).electronAPI.mcp
+      console.log('✅ MCP服务：Electron环境检测成功')
     } else {
-      console.warn('MCP服务：不在Electron环境中，MCP功能将不可用')
+      console.warn('⚠️ MCP服务：不在Electron环境中，MCP功能将不可用')
     }
   }
 
