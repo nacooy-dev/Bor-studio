@@ -1,6 +1,6 @@
 {
   "name": "bor-intelligent-agent-hub",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Bor 智能体中枢 - 瑞士军刀式的个人智能助手平台",
   "main": "dist-electron/main.js",
   "type": "module",
