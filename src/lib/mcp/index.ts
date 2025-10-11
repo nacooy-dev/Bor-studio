@@ -12,11 +12,17 @@ export { MCPManager } from './manager'
 // 协议客户端
 export { MCPProtocolClient } from './protocol'
 
+// 性能监控
+export { mcpPerformanceMonitor } from './performance-monitor'
+
+// 性能测试
+export { mcpPerformanceTester } from './performance-test'
+
 // 默认配置
 export const DEFAULT_MCP_CONFIG = {
   maxConcurrentServers: 5,
-  toolExecutionTimeout: 30000,
-  serverStartTimeout: 10000,
+  toolExecutionTimeout: 15000,  // 减少工具执行超时时间到15秒
+  serverStartTimeout: 10000,    // 保持服务器启动超时时间
   enableLogging: true,
   logLevel: 'info' as const
 }

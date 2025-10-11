@@ -5,6 +5,7 @@
 
 import type { MCPServerConfig, MCPToolCall, MCPAPI, ApiResponse } from '@/types'
 import { BuiltInMCPServer } from '@/lib/mcp/built-in-tools'
+import { mcpPerformanceMonitor } from '@/lib/mcp/performance-monitor'
 
 // 简化的模块加载，避免在Electron中使用动态导入
 let aiIntegrationAvailable = false
@@ -301,14 +302,30 @@ export class MCPService {
   }
 
   /**
-   * 执行工具
+   * 执行工具（带缓存优化和重试机制）
    */
   async executeTool(call: MCPToolCall): Promise<ApiResponse> {
     try {
       // 首先检查是否是内置工具
       const builtInTool = this.builtInServer.findTool(call.tool)
       if (builtInTool) {
+        // 检查是否有缓存结果
+        const cachedResult = mcpPerformanceMonitor.getCachedToolResult(call.tool, 'built-in', call.parameters)
+        if (cachedResult) {
+          console.log(`📦 使用缓存结果: ${call.tool}`)
+          return {
+            success: true,
+            data: cachedResult
+          }
+        }
+        
         const result = await this.builtInServer.executeTool(call.tool, call.parameters)
+        
+        // 缓存结果（对于确定性工具，如计算器）
+        if (call.tool === 'calculate') {
+          mcpPerformanceMonitor.cacheToolResult(call.tool, 'built-in', call.parameters, result, 60000) // 1分钟缓存
+        }
+        
         return {
           success: true,
           data: result
@@ -323,8 +340,71 @@ export class MCPService {
         }
       }
 
-      const result = await this.api!.executeTool(call)
-      return result
+      // 检查是否有缓存结果（对于幂等操作）
+      const cacheKey = `${call.server}:${call.tool}`
+      if (call.tool === 'get_time' || call.tool === 'list_files') {
+        const cachedResult = mcpPerformanceMonitor.getCachedToolResult(call.tool, call.server, call.parameters)
+        if (cachedResult) {
+          console.log(`📦 使用缓存结果: ${call.tool}`)
+          return {
+            success: true,
+            data: cachedResult
+          }
+        }
+      }
+
+      // 增加重试机制
+      let lastError: Error | null = null;
+      let result: any = null;
+      
+      // 尝试最多3次
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`📡 尝试执行工具 (第${attempt}次尝试):`, call.tool);
+          
+          result = await Promise.race([
+            this.api!.executeTool(call),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error(`Tool execution timeout after 30 seconds (attempt ${attempt})`)), 30000)
+            )
+          ])
+          
+          // 检查结果
+          if (result && result.success) {
+            console.log(`✅ 工具执行成功 (第${attempt}次尝试)`);
+            
+            // 缓存某些工具的结果
+            if (call.tool === 'get_time') {
+              mcpPerformanceMonitor.cacheToolResult(call.tool, call.server, call.parameters, result, 10000) // 10秒缓存
+            }
+            
+            return result
+          } else {
+            const error = result?.error || 'Unknown error';
+            console.warn(`⚠️ 工具执行失败 (第${attempt}次尝试):`, error);
+            lastError = new Error(error);
+            
+            // 如果不是最后一次尝试，等待一段时间再重试
+            if (attempt < 3) {
+              await new Promise(resolve => setTimeout(resolve, 3000 * attempt));
+            }
+          }
+        } catch (error) {
+          lastError = error as Error;
+          console.warn(`⚠️ 工具执行异常 (第${attempt}次尝试):`, error);
+          
+          // 如果不是最后一次尝试，等待一段时间再重试
+          if (attempt < 3) {
+            await new Promise(resolve => setTimeout(resolve, 3000 * attempt));
+          }
+        }
+      }
+      
+      // 所有尝试都失败了
+      return {
+        success: false,
+        error: `工具执行失败 after 3 attempts: ${lastError?.message || 'Unknown error'}`
+      }
     } catch (error) {
       return {
         success: false,

@@ -136,6 +136,7 @@ export interface MCPAPI {
   getTools: (serverId?: string) => Promise<{ success: boolean; data?: any[]; error?: string }>
   findTool: (name: string, serverId?: string) => Promise<{ success: boolean; data?: any; error?: string }>
   executeTool: (call: MCPToolCall) => Promise<{ success: boolean; data?: any; error?: string }>
+  updateServer?: (serverId: string, config: MCPServerConfig) => Promise<{ success: boolean; error?: string }> // 可选方法
 }
 
 // 工具信息

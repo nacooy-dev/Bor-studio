@@ -11,9 +11,19 @@ export interface PerformanceMetrics {
   error?: string
 }
 
+// 工具结果缓存接口
+export interface ToolResultCache {
+  [key: string]: {
+    result: any
+    timestamp: number
+    ttl: number // 缓存时间（毫秒）
+  }
+}
+
 class MCPPerformanceMonitor {
   private metrics: PerformanceMetrics[] = []
   private readonly MAX_METRICS = 100 // 限制存储的指标数量
+  private toolCache: ToolResultCache = {} // 工具结果缓存
 
   /**
    * 开始监控操作
@@ -52,9 +62,9 @@ class MCPPerformanceMonitor {
       metric.error = error
       
       // 记录性能警告
-      if (metric.duration > 1000) { // 超过1秒
+      if (metric.duration && metric.duration > 1000) { // 超过1秒
         console.warn(`⚠️ 性能警告: ${operation} 耗时 ${metric.duration.toFixed(2)}ms`)
-      } else if (metric.duration > 100) { // 超过100ms
+      } else if (metric.duration && metric.duration > 100) { // 超过100ms
         console.log(`⏱️ 性能提示: ${operation} 耗时 ${metric.duration.toFixed(2)}ms`)
       }
     }
@@ -133,6 +143,60 @@ class MCPPerformanceMonitor {
     }
     
     return suggestions
+  }
+
+  /**
+   * 缓存工具结果
+   */
+  cacheToolResult(toolName: string, serverId: string, parameters: any, result: any, ttl: number = 30000): void {
+    const cacheKey = `${serverId}:${toolName}:${JSON.stringify(parameters)}`
+    this.toolCache[cacheKey] = {
+      result,
+      timestamp: Date.now(),
+      ttl
+    }
+    
+    // 定期清理过期缓存
+    this.cleanupCache()
+  }
+
+  /**
+   * 获取缓存的工具结果
+   */
+  getCachedToolResult(toolName: string, serverId: string, parameters: any): any | null {
+    const cacheKey = `${serverId}:${toolName}:${JSON.stringify(parameters)}`
+    const cached = this.toolCache[cacheKey]
+    
+    if (cached && (Date.now() - cached.timestamp) < cached.ttl) {
+      return cached.result
+    }
+    
+    // 清理过期缓存
+    if (cached) {
+      delete this.toolCache[cacheKey]
+    }
+    
+    return null
+  }
+
+  /**
+   * 清理过期缓存
+   */
+  private cleanupCache(): void {
+    const now = Date.now()
+    for (const key in this.toolCache) {
+      const cached = this.toolCache[key]
+      if ((now - cached.timestamp) >= cached.ttl) {
+        delete this.toolCache[key]
+      }
+    }
+  }
+
+  /**
+   * 清除所有缓存
+   */
+  clearCache(): void {
+    this.toolCache = {}
   }
 }
 

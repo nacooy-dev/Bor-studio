@@ -25,7 +25,7 @@ export class MCPProtocolClient extends EventEmitter {
 
   constructor(
     private config: MCPServerConfig,
-    private timeout = 30000
+    private timeout = 15000  // 减少默认超时时间到15秒
   ) {
     super()
   }
@@ -109,7 +109,7 @@ export class MCPProtocolClient extends EventEmitter {
   }
 
   /**
-   * 发送MCP消息
+   * 发送MCP消息（带性能优化）
    */
   async sendMessage(message: Omit<MCPMessage, 'jsonrpc'>): Promise<any> {
     if (!this.process) {
@@ -129,10 +129,11 @@ export class MCPProtocolClient extends EventEmitter {
     }
 
     return new Promise((resolve, reject) => {
+      // 使用更短的超时时间
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(id)
-        reject(new Error(`Request timeout: ${message.method}`))
-      }, this.timeout)
+        reject(new Error(`Request timeout after 10 seconds: ${message.method}`))
+      }, 10000)
 
       this.pendingRequests.set(id, { resolve, reject, timeout })
 
@@ -170,16 +171,22 @@ export class MCPProtocolClient extends EventEmitter {
   }
 
   /**
-   * 调用工具
+   * 调用工具（带性能优化）
    */
   async callTool(name: string, arguments_: Record<string, any>): Promise<any> {
-    const response = await this.sendMessage({
-      method: 'tools/call',
-      params: {
-        name,
-        arguments: arguments_
-      }
-    })
+    // 使用Promise.race实现更短的超时控制
+    const response = await Promise.race([
+      this.sendMessage({
+        method: 'tools/call',
+        params: {
+          name,
+          arguments: arguments_
+        }
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Tool call timeout after 12 seconds')), 12000)
+      )
+    ])
     return response
   }
 

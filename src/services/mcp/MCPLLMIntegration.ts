@@ -409,39 +409,72 @@ tool_call(query='查询内容')
   }
 
   /**
-   * 使用指定服务器执行工具调用
+   * 使用指定服务器执行工具调用（带性能优化和重试机制）
    */
   private async executeToolWithServer(mcpCall: MCPToolCall, toolName: string): Promise<ToolCallResult> {
     try {
       console.log('📡 发送工具调用到服务器:', mcpCall)
       
-      // 执行工具调用
-      const result = await mcpService.executeTool(mcpCall)
+      // 记录开始时间
+      const startTime = Date.now()
       
-      // 记录调用历史
-      this.toolCallHistory.push({
-        call: mcpCall,
-        result: result.data,
-        timestamp: new Date()
-      })
+      // 增加超时时间并添加重试机制
+      let lastError: Error | null = null;
+      
+      // 尝试最多3次
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`📡 尝试执行工具调用 (第${attempt}次尝试):`, mcpCall);
+          
+          const result = await Promise.race([
+            mcpService.executeTool(mcpCall),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error(`Tool execution timeout after 30 seconds (attempt ${attempt})`)), 30000)
+            )
+          ])
+          
+          const executionTime = Date.now() - startTime
+          console.log(`⏱️ 工具执行耗时: ${executionTime}ms (第${attempt}次尝试)`)
+          
+          // 记录调用历史
+          this.toolCallHistory.push({
+            call: mcpCall,
+            result: (result as any).data,
+            timestamp: new Date()
+          })
 
-      if (result.success) {
-        console.log('✅ 工具调用成功:', result.data)
-        return {
-          success: true,
-          result: result.data,
-          toolName: toolName
-        }
-      } else {
-        console.error('❌ 工具调用失败:', result.error)
-        return {
-          success: false,
-          error: result.error,
-          toolName: toolName
+          if ((result as any).success) {
+            console.log('✅ 工具调用成功:', (result as any).data)
+            return {
+              success: true,
+              result: (result as any).data,
+              toolName: toolName
+            }
+          } else {
+            const error = (result as any).error || 'Unknown error';
+            console.warn(`⚠️ 工具调用失败 (第${attempt}次尝试):`, error);
+            lastError = new Error(error);
+            
+            // 如果不是最后一次尝试，等待一段时间再重试
+            if (attempt < 3) {
+              await new Promise(resolve => setTimeout(resolve, 3000 * attempt));
+            }
+          }
+        } catch (error) {
+          lastError = error as Error;
+          console.warn(`⚠️ 工具调用异常 (第${attempt}次尝试):`, error);
+          
+          // 如果不是最后一次尝试，等待一段时间再重试
+          if (attempt < 3) {
+            await new Promise(resolve => setTimeout(resolve, 3000 * attempt));
+          }
         }
       }
+      
+      // 所有尝试都失败了
+      throw new Error(`Tool execution failed after 3 attempts: ${lastError?.message || 'Unknown error'}`)
     } catch (error) {
-      console.error('❌ 服务器工具调用异常:', error)
+      console.error('❌ 服务器工具调用最终失败:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : '服务器调用失败',

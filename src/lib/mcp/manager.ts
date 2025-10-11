@@ -29,8 +29,8 @@ export class MCPManager extends EventEmitter {
     super()
     this.config = {
       maxConcurrentServers: 5,
-      toolExecutionTimeout: 30000,
-      serverStartTimeout: 10000,
+      toolExecutionTimeout: 15000,  // 减少工具执行超时时间到15秒
+      serverStartTimeout: 10000,    // 保持服务器启动超时时间
       enableLogging: true,
       logLevel: 'info',
       ...config
@@ -192,7 +192,7 @@ export class MCPManager extends EventEmitter {
   }
 
   /**
-   * 执行工具调用
+   * 执行工具调用（带性能优化）
    */
   async executeTool(call: MCPToolCall): Promise<MCPToolResult> {
     const startTime = Date.now()
@@ -208,7 +208,14 @@ export class MCPManager extends EventEmitter {
     }
 
     try {
-      const result = await client.callTool(call.tool, call.parameters)
+      // 使用Promise.race实现更短的超时控制
+      const result = await Promise.race([
+        client.callTool(call.tool, call.parameters),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Tool execution timeout after 12 seconds')), 12000)
+        )
+      ])
+      
       const executionTime = Date.now() - startTime
       
       const toolResult: MCPToolResult = {

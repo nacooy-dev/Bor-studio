@@ -45,8 +45,8 @@ export class StandardMCPAdapter extends EventEmitter {
     super()
     this.config = {
       maxServers: 10,
-      serverTimeout: 30000,
-      toolTimeout: 60000,
+      serverTimeout: 15000,  // 减少服务器超时时间到15秒
+      toolTimeout: 20000,    // 减少工具超时时间到20秒
       enableLogging: true,
       ...config
     }
@@ -278,7 +278,7 @@ export class StandardMCPAdapter extends EventEmitter {
   }
 
   /**
-   * 执行工具调用
+   * 执行工具调用（带性能优化）
    */
   async executeTool(call: MCPToolCall): Promise<any> {
     const server = this.servers.get(call.server)
@@ -291,14 +291,43 @@ export class StandardMCPAdapter extends EventEmitter {
     }
 
     try {
-      const response = await server.client.callTool({
-        name: call.tool,
-        arguments: call.parameters
-      })
+      // 增加超时时间并添加重试机制
+      let lastError: Error | null = null;
+      
+      // 尝试最多3次
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`📡 尝试执行工具调用 (第${attempt}次尝试):`, call);
+          
+          const response = await Promise.race([
+            server.client.callTool({
+              name: call.tool,
+              arguments: call.parameters
+            }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error(`Tool execution timeout after 25 seconds (attempt ${attempt})`)), 25000)
+            )
+          ])
 
-      return response.content || response
+          console.log(`✅ 工具调用成功 (第${attempt}次尝试):`, response);
+          return (response as any).content || response
+        } catch (error) {
+          lastError = error as Error;
+          console.warn(`⚠️ 工具调用失败 (第${attempt}次尝试):`, error);
+          
+          // 如果不是最后一次尝试，等待一段时间再重试
+          if (attempt < 3) {
+            await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+          }
+        }
+      }
+      
+      // 所有尝试都失败了
+      throw new Error(`Tool execution failed after 3 attempts: ${lastError?.message || 'Unknown error'}`)
     } catch (error) {
-      throw new Error(`Tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      const errorMessage = `Tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      console.error('❌ 工具执行最终失败:', errorMessage)
+      throw new Error(errorMessage)
     }
   }
 

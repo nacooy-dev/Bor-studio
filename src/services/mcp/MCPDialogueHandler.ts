@@ -59,6 +59,20 @@ export class MCPDialogueHandler {
     }
     
     // 如果没有匹配到特定的MCP操作，打开MCP配置页面
+    const suggestions: Array<{
+      type: string
+      payload: any
+      url?: URL
+      text?: string
+    }> = []
+
+    // 添加跳转到配置页面的建议
+    suggestions.push({
+      type: 'navigation',
+      payload: { path: '/config#mcp' },
+      text: '前往MCP配置页面'
+    })
+
     return {
       message: '🔧 正在打开MCP工具配置页面！\n\n' +
                '在配置页面中，您可以：\n' +
@@ -68,11 +82,7 @@ export class MCPDialogueHandler {
                '• 🛠️ 查看每个服务器的可用工具\n' +
                '• 📊 实时监控服务器状态\n\n' +
                '配置完成后，您就可以通过对话直接使用这些工具了！',
-      actions: [{
-        type: 'redirect',
-        payload: { url: '#/config' },
-        description: '跳转到配置页面的MCP工具标签页'
-      }],
+      actions: suggestions,
       followUpQuestions: [
         '检查MCP状态',
         'MCP帮助'
@@ -101,9 +111,10 @@ export class MCPDialogueHandler {
       const servers = serversResult.success ? serversResult.data || [] : []
       const tools = toolsResult.success ? toolsResult.data || [] : []
       
-      const runningServers = servers.filter(s => s.status === 'running')
-      const stoppedServers = servers.filter(s => s.status === 'stopped')
-      const errorServers = servers.filter(s => s.status === 'error')
+      // 分类统计
+      const runningServers = servers.filter((s: any) => s.status === 'running')
+      const stoppedServers = servers.filter((s: any) => s.status === 'stopped')
+      const errorServers = servers.filter((s: any) => s.status === 'error')
       
       let message = '📊 MCP工具状态报告\n\n'
       
@@ -124,7 +135,7 @@ export class MCPDialogueHandler {
         if (runningServers.length > 0) {
           message += '**运行中的服务器：**\n'
           for (const server of runningServers) {
-            const serverTools = tools.filter(t => t.server === server.id)
+            const serverTools = tools.filter((t: any) => t.server === server.id)
             message += `• ${server.name} (${serverTools.length} 个工具)\n`
           }
           message += '\n'
@@ -294,19 +305,19 @@ export class MCPDialogueHandler {
       let targetServer = null
       
       if (input.includes('文件系统') || input.includes('文件')) {
-        targetServer = servers.find(s => s.id === 'filesystem')
+        targetServer = servers.find((s: any) => s.id === 'filesystem')
       } else if (input.includes('duckduckgo') || input.includes('鸭鸭')) {
-        targetServer = servers.find(s => s.id === 'duckduckgo-search')
+        targetServer = servers.find((s: any) => s.id === 'duckduckgo-search')
       } else if (input.includes('网络研究') || input.includes('研究')) {
-        targetServer = servers.find(s => s.id === 'web-research')
+        targetServer = servers.find((s: any) => s.id === 'web-research')
       } else if (input.includes('time') || input.includes('时间')) {
-        targetServer = servers.find(s => s.id === 'time-server')
+        targetServer = servers.find((s: any) => s.id === 'time-server')
       } else if (input.includes('搜索')) {
-        targetServer = servers.find(s => s.id === 'duckduckgo-search')
+        targetServer = servers.find((s: any) => s.id === 'duckduckgo-search')
       } else if (input.includes('获取') || input.includes('抓取')) {
-        targetServer = servers.find(s => s.id === 'web-fetch')
+        targetServer = servers.find((s: any) => s.id === 'web-fetch')
       } else if (input.includes('数据库') || input.includes('sqlite')) {
-        targetServer = servers.find(s => s.id === 'sqlite')
+        targetServer = servers.find((s: any) => s.id === 'sqlite')
       } else {
         // 尝试从服务器名称匹配
         for (const server of servers) {
@@ -318,7 +329,7 @@ export class MCPDialogueHandler {
           }
           // 检查部分名称匹配
           const nameWords = serverNameLower.split(' ')
-          if (nameWords.some(word => word.length > 2 && input.includes(word))) {
+          if (nameWords.some((word: string) => word.length > 2 && input.includes(word))) {
             targetServer = server
             break
           }
@@ -326,11 +337,15 @@ export class MCPDialogueHandler {
       }
       
       if (!targetServer) {
-        const availableServers = servers.map(s => `• ${s.name} (${s.status})`).join('\n')
+        const availableServers = servers.map((s: any) => `• ${s.name} (${s.status})`).join('\n')
         return {
-          message: `请指定要${isStart ? '启动' : '停止'}的服务器：\n\n${availableServers}\n\n` +
+          message: `请指定要${isStart ? '启动' : '停止'}的服务器：
+
+${availableServers}
+
+` +
                    `例如：说"${isStart ? '启动' : '停止'}文件系统服务器"`,
-          followUpQuestions: servers.map(s => `${isStart ? '启动' : '停止'}${s.name}`)
+          followUpQuestions: servers.map((s: any) => `${isStart ? '启动' : '停止'}${s.name}`)
         }
       }
       
@@ -422,7 +437,7 @@ export class MCPDialogueHandler {
       }
       
       // 按服务器分组工具
-      const toolsByServer = tools.reduce((acc, tool) => {
+      const toolsByServer = tools.reduce((acc: any, tool: any) => {
         if (!acc[tool.server]) {
           acc[tool.server] = []
         }
@@ -433,10 +448,10 @@ export class MCPDialogueHandler {
       let message = `🛠️ 可用工具列表 (${tools.length} 个)\n\n`
       
       for (const [serverId, serverTools] of Object.entries(toolsByServer)) {
-        const serverName = serverTools[0]?.server || serverId
+        const serverName = (serverTools as any[])[0]?.server || serverId
         message += `**${serverName}：**\n`
         
-        for (const tool of serverTools) {
+        for (const tool of (serverTools as any[])) {
           const riskEmoji = tool.riskLevel === 'high' ? '⚠️' : tool.riskLevel === 'medium' ? '⚡' : '✅'
           message += `• ${riskEmoji} **${tool.name}** - ${tool.description}\n`
         }
@@ -520,12 +535,12 @@ export class MCPDialogueHandler {
       
       // 检查必需参数
       const requiredParams = matchedTool.schema?.required || []
-      const missingParams = requiredParams.filter(param => !parameters[param])
+      const missingParams = requiredParams.filter((param: string) => !parameters[param])
       
       if (missingParams.length > 0) {
         return {
           message: `🔧 使用 **${matchedTool.name}** 工具需要以下参数：\n\n` +
-                   missingParams.map(param => `• **${param}**`).join('\n') + '\n\n' +
+                   missingParams.map((param: string) => `• **${param}**`).join('\n') + '\n\n' +
                    '请提供更详细的信息。',
           followUpQuestions: [
             '有什么工具可用',
@@ -549,7 +564,7 @@ export class MCPDialogueHandler {
         if (typeof result === 'string') {
           message += result
         } else if (result && typeof result === 'object') {
-          message += '```json\n' + JSON.stringify(result, null, 2) + '\n```'
+          message += '``json\n' + JSON.stringify(result, null, 2) + '\n```'
         } else {
           message += '操作完成'
         }
@@ -563,6 +578,146 @@ export class MCPDialogueHandler {
         }
       } else {
         const error = executionResult.data?.error || executionResult.error || '未知错误'
+        return {
+          message: `❌ **${matchedTool.name}** 执行失败：${error}`,
+          followUpQuestions: [
+            '有什么工具可用',
+            '检查MCP状态'
+          ]
+        }
+      }
+    } catch (error) {
+      return {
+        message: `❌ 工具执行出错：${error instanceof Error ? error.message : '未知错误'}`,
+        followUpQuestions: ['检查MCP状态', 'MCP帮助']
+      }
+    }
+  }
+
+  /**
+   * 处理工具使用请求（带性能优化）
+   */
+  private async handleToolUsage(userInput: string): Promise<MCPDialogueResponse> {
+    try {
+      console.log('🔧 处理工具使用请求:', userInput)
+      
+      // 获取可用工具
+      const toolsResult = await mcpService.getTools()
+      if (!toolsResult.success || !toolsResult.data) {
+        return {
+          message: '❌ 无法获取工具列表',
+          followUpQuestions: ['检查MCP状态']
+        }
+      }
+      
+      const tools = toolsResult.data
+      
+      // 简单的工具匹配逻辑
+      const matchedTool = this.findBestMatchingTool(userInput, tools)
+      
+      if (!matchedTool) {
+        return {
+          message: '❓ 无法确定要使用的工具\n\n' +
+                   '请更具体地描述您的需求，或查看可用工具列表。',
+          followUpQuestions: [
+            '有什么工具可用',
+            '帮我读取文件',
+            '搜索信息'
+          ]
+        }
+      }
+      
+      // 提取参数
+      const parameters = this.extractParameters(userInput, matchedTool)
+      
+      // 检查必需参数
+      const requiredParams = matchedTool.schema?.required || []
+      const missingParams = requiredParams.filter((param: string) => !parameters[param])
+      
+      if (missingParams.length > 0) {
+        return {
+          message: `🔧 使用 **${matchedTool.name}** 工具需要以下参数：\n\n` +
+                   missingParams.map((param: string) => `• **${param}**`).join('\n') + '\n\n' +
+                   '请提供更详细的信息。',
+          followUpQuestions: [
+            '有什么工具可用',
+            'MCP帮助'
+          ]
+        }
+      }
+      
+      // 执行工具，增加超时时间和重试机制
+      let lastError: Error | null = null;
+      let executionResult: any = null;
+      let success = false;
+      
+      // 尝试最多3次
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`📡 尝试执行工具 (第${attempt}次尝试):`, matchedTool.name);
+          
+          const executionPromise = mcpService.executeTool({
+            tool: matchedTool.name,
+            server: matchedTool.server,
+            parameters,
+            requestId: `chat_${Date.now()}_attempt_${attempt}`
+          })
+          
+          executionResult = await Promise.race([
+            executionPromise,
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error(`Tool execution timeout after 30 seconds (attempt ${attempt})`)), 30000)
+            )
+          ])
+          
+          // 检查执行结果
+          if ((executionResult as any).success && (executionResult as any).data?.success) {
+            success = true;
+            console.log(`✅ 工具执行成功 (第${attempt}次尝试)`);
+            break;
+          } else {
+            const error = (executionResult as any).data?.error || (executionResult as any).error || 'Unknown error';
+            console.warn(`⚠️ 工具执行失败 (第${attempt}次尝试):`, error);
+            lastError = new Error(error);
+            
+            // 如果不是最后一次尝试，等待一段时间再重试
+            if (attempt < 3) {
+              await new Promise(resolve => setTimeout(resolve, 3000 * attempt));
+            }
+          }
+        } catch (error) {
+          lastError = error as Error;
+          console.warn(`⚠️ 工具执行异常 (第${attempt}次尝试):`, error);
+          
+          // 如果不是最后一次尝试，等待一段时间再重试
+          if (attempt < 3) {
+            await new Promise(resolve => setTimeout(resolve, 3000 * attempt));
+          }
+        }
+      }
+      
+      // 检查最终结果
+      if (success && executionResult) {
+        const result = (executionResult as any).data.data
+        let message = `✅ **${matchedTool.name}** 执行成功\n\n`
+        
+        if (typeof result === 'string') {
+          message += result
+        } else if (result && typeof result === 'object') {
+          message += '``json\n' + JSON.stringify(result, null, 2) + '\n```'
+        } else {
+          message += '操作完成'
+        }
+        
+        return {
+          message,
+          followUpQuestions: [
+            '继续使用工具',
+            '有什么工具可用'
+          ]
+        }
+      } else {
+        const error = lastError?.message || (executionResult as any)?.data?.error || (executionResult as any)?.error || '未知错误'
         return {
           message: `❌ **${matchedTool.name}** 执行失败：${error}`,
           followUpQuestions: [
@@ -610,11 +765,11 @@ export class MCPDialogueHandler {
       let targetServer = null
       
       if (input.includes('duckduckgo') || input.includes('鸭鸭')) {
-        targetServer = servers.find(s => s.id === 'duckduckgo-search')
+        targetServer = servers.find((s: any) => s.id === 'duckduckgo-search')
       } else if (input.includes('文件系统') || input.includes('文件')) {
-        targetServer = servers.find(s => s.id === 'filesystem')
+        targetServer = servers.find((s: any) => s.id === 'filesystem')
       } else if (input.includes('时间')) {
-        targetServer = servers.find(s => s.id === 'time-server')
+        targetServer = servers.find((s: any) => s.id === 'time-server')
       } else {
         // 尝试从服务器名称匹配
         for (const server of servers) {
@@ -627,11 +782,15 @@ export class MCPDialogueHandler {
       }
       
       if (!targetServer) {
-        const availableServers = servers.map(s => `• ${s.name}`).join('\n')
+        const availableServers = servers.map((s: any) => `• ${s.name}`).join('\n')
         return {
-          message: `请指定要删除的服务器：\n\n${availableServers}\n\n` +
+          message: `请指定要删除的服务器：
+
+${availableServers}
+
+` +
                    `例如：说"删除DuckDuckGo服务器"`,
-          followUpQuestions: servers.map(s => `删除${s.name}`)
+          followUpQuestions: servers.map((s: any) => `删除${s.name}`)
         }
       }
       

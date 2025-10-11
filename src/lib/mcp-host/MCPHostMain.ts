@@ -72,7 +72,7 @@ export class MCPHostMain extends EventEmitter {
   }
 
   /**
-   * 启动MCP服务器
+   * 启动 MCP 服务器
    */
   async startServer(serverId: string): Promise<void> {
     const server = this.servers.get(serverId)
@@ -93,55 +93,162 @@ export class MCPHostMain extends EventEmitter {
     this.emit('server_starting', server)
 
     try {
-      console.log(`🚀 启动MCP服务器: ${serverId}`)
-      console.log(`命令: ${server.config.command} ${server.config.args.join(' ')}`)
+      console.log(`🚀 启动 MCP 服务器: ${serverId}`)
+      console.log(`🔧 服务器配置:`, {
+        command: server.config.command,
+        args: server.config.args,
+        cwd: server.config.cwd || process.cwd()
+      })
+      
+      // 确保环境变量包含系统路径，解决打包应用中找不到 uvx 的问题
+      const serverEnv: Record<string, string> = {}
+      
+      // 复制所有环境变量，过滤掉 undefined 值
+      for (const [key, value] of Object.entries({ ...process.env, ...server.config.env })) {
+        if (value !== undefined) {
+          serverEnv[key] = value
+        }
+      }
+      
+      // 在 macOS 打包应用中，扩展 PATH 环境变量以包含系统工具路径
+      // 只在打包应用中执行此操作，避免影响开发环境
+      if (process.platform === 'darwin' && !process.env.VITE_DEV_SERVER_URL) {
+        const additionalPaths = [
+          '/usr/local/bin',
+          '/opt/homebrew/bin',
+          '/opt/homebrew/sbin',
+          '/usr/bin',
+          '/bin',
+          '/usr/sbin',
+          '/sbin'
+        ]
+        
+        // 扩展 PATH 环境变量
+        if (serverEnv.PATH) {
+          // 避免重复添加路径
+          const currentPaths = serverEnv.PATH.split(':')
+          const newPaths = additionalPaths.filter(p => !currentPaths.includes(p))
+          serverEnv.PATH = [...newPaths, ...currentPaths].join(':')
+        } else {
+          serverEnv.PATH = additionalPaths.join(':')
+        }
+        
+        console.log('🔧 为 MCP 服务器设置 PATH 环境变量:', serverEnv.PATH)
+      }
 
-      // 启动子进程
+      // 创建子进程，使用优化的启动参数
       const childProcess = spawn(server.config.command, server.config.args, {
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, ...server.config.env },
+        env: serverEnv,
         cwd: server.config.cwd || process.cwd()
       })
 
       server.process = childProcess
       server.pid = childProcess.pid
 
-      // 设置进程事件监听
-      this.setupProcessListeners(server)
+      // 设置超时控制
+      const timeout = setTimeout(() => {
+        if (childProcess.pid) {
+          childProcess.kill()
+        }
+        console.error(`❌ 进程启动超时: ${serverId}`)
+      }, this.config.serverTimeout / 2) // 减少启动超时时间
 
-      // 等待进程启动
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Server startup timeout'))
-        }, 5000)
-
-        childProcess.on('spawn', () => {
-          clearTimeout(timeout)
-          console.log(`✅ 进程已启动: ${serverId} (PID: ${childProcess.pid})`)
-          resolve()
-        })
-
-        childProcess.on('error', (error) => {
-          clearTimeout(timeout)
-          console.error(`❌ 进程启动失败: ${serverId}`, error)
-          reject(error)
-        })
+      childProcess.on('spawn', () => {
+        clearTimeout(timeout)
+        console.log(`✅ 进程已启动: ${serverId} (PID: ${childProcess.pid})`)
       })
 
-      // 等待一小段时间让进程完全启动
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      childProcess.on('error', (error) => {
+        clearTimeout(timeout)
+        console.error(`❌ 进程启动失败: ${serverId}`, error)
+        server.status = 'error'
+        server.lastError = error.message
+        this.emit('server_error', server, error)
+      })
+
+      // 处理stdout消息
+      childProcess.stdout?.on('data', (data) => {
+        this.handleServerMessage(server, data.toString())
+      })
+
+      // 处理stderr错误
+      childProcess.stderr?.on('data', (data) => {
+        console.error(`[${serverId}] stderr:`, data.toString())
+        this.emit('server_stderr', server, data.toString())
+      })
+
+      childProcess.on('exit', (code, signal) => {
+        console.log(`[${serverId}] 进程退出 (code: ${code}, signal: ${signal})`)
+        server.status = 'stopped'
+        server.process = null
+        server.pid = undefined
+        this.emit('server_stopped', server)
+      })
+
+      // 等待一小段时间让进程完全启动（减少等待时间）
+      await new Promise(resolve => setTimeout(resolve, 500))
 
       // 初始化MCP协议
       try {
-        await this.initializeServer(server)
+        console.log(`🔄 初始化MCP协议: ${serverId}`)
+
+        // 临时设置状态为running以允许发送消息
+        const originalStatus = server.status
         server.status = 'running'
-        this.emit('server_started', server)
-        console.log(`🎉 MCP服务器启动成功: ${serverId}`)
-      } catch (initError) {
-        console.error(`❌ MCP协议初始化失败: ${serverId}`, initError)
-        // 如果初始化失败，停止进程
-        childProcess.kill()
-        throw initError
+
+        try {
+          // 发送初始化消息，使用更短的超时时间
+          console.log(`📤 发送初始化消息到: ${serverId}`)
+          const response = await Promise.race([
+            this.sendMessage(serverId, {
+              method: 'initialize',
+              params: {
+                protocolVersion: '2024-11-05',
+                capabilities: {
+                  tools: {},
+                  resources: {},
+                  prompts: {}
+                },
+                clientInfo: {
+                  name: 'Bor-Studio-MCP-Host',
+                  version: '1.0.0'
+                }
+              }
+            }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Initialize timeout after 5 seconds')), 5000)
+            )
+          ])
+
+          server.capabilities = response.capabilities || {}
+          console.log(`✅ MCP协议初始化完成: ${serverId}`, response)
+
+          // 发送初始化完成通知
+          console.log(`📤 发送初始化完成通知到: ${serverId}`)
+          await this.sendNotification(serverId, {
+            method: 'notifications/initialized'
+          })
+
+          // 等待一小段时间让服务器处理通知（减少等待时间）
+          await new Promise(resolve => setTimeout(resolve, 200))
+
+          // 发现工具
+          await this.discoverTools(serverId)
+
+        } catch (error) {
+          // 恢复原始状态
+          server.status = originalStatus
+          console.error(`❌ 初始化失败，恢复状态到: ${originalStatus}`)
+          throw error
+        }
+
+      } catch (error) {
+        console.error(`❌ MCP协议初始化失败 ${serverId}:`, error)
+        server.lastError = error instanceof Error ? error.message : 'Initialization failed'
+        server.status = 'error'
+        this.emit('server_error', server, error)
+        throw error
       }
 
     } catch (error) {
@@ -323,22 +430,29 @@ export class MCPHostMain extends EventEmitter {
   }
 
   /**
-   * 发现服务器工具
+   * 发现服务器工具（带缓存优化）
    */
   private async discoverTools(serverId: string): Promise<void> {
     try {
       console.log(`🔍 发现工具: ${serverId}`)
+      
+      // 检查是否有缓存的工具列表
+      const server = this.servers.get(serverId)
+      if (server && server.tools.length > 0) {
+        console.log(`📦 使用缓存的工具列表: ${serverId}`)
+        this.emit('tools_discovered', server, server.tools)
+        return
+      }
       
       const response = await Promise.race([
         this.sendMessage(serverId, {
           method: 'tools/list'
         }),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Tools discovery timeout after 5 seconds')), 5000)
+          setTimeout(() => reject(new Error('Tools discovery timeout after 3 seconds')), 3000)
         )
       ])
 
-      const server = this.servers.get(serverId)
       if (server && response && response.tools) {
         server.tools = response.tools.map((tool: any) => ({
           name: tool.name,
@@ -483,7 +597,7 @@ export class MCPHostMain extends EventEmitter {
   }
 
   /**
-   * 执行工具调用
+   * 执行工具调用（带性能优化）
    */
   async executeTool(call: MCPToolCall): Promise<any> {
     const server = this.servers.get(call.server)
@@ -502,17 +616,46 @@ export class MCPHostMain extends EventEmitter {
     }
 
     try {
-      const response = await this.sendMessage(call.server, {
-        method: 'tools/call',
-        params: {
-          name: call.tool,
-          arguments: call.parameters
-        }
-      })
+      // 增加超时时间并添加重试机制
+      let lastError: Error | null = null;
+      
+      // 尝试最多3次
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`📡 尝试执行工具调用 (第${attempt}次尝试):`, call);
+          
+          const response = await Promise.race([
+            this.sendMessage(call.server, {
+              method: 'tools/call',
+              params: {
+                name: call.tool,
+                arguments: call.parameters
+              }
+            }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error(`Tool execution timeout after 25 seconds (attempt ${attempt})`)), 25000)
+            )
+          ])
 
-      return response.content || response
+          console.log(`✅ 工具调用成功 (第${attempt}次尝试):`, response);
+          return response.content || response
+        } catch (error) {
+          lastError = error as Error;
+          console.warn(`⚠️ 工具调用失败 (第${attempt}次尝试):`, error);
+          
+          // 如果不是最后一次尝试，等待一段时间再重试
+          if (attempt < 3) {
+            await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+          }
+        }
+      }
+      
+      // 所有尝试都失败了
+      throw new Error(`Tool execution failed after 3 attempts: ${lastError?.message || 'Unknown error'}`)
     } catch (error) {
-      throw new Error(`Tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      const errorMessage = `Tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      console.error('❌ 工具执行最终失败:', errorMessage)
+      throw new Error(errorMessage)
     }
   }
 
@@ -535,7 +678,8 @@ export class MCPHostMain extends EventEmitter {
    */
   getAllTools(): MCPTool[] {
     const tools: MCPTool[] = []
-    for (const server of this.servers.values()) {
+    const servers = Array.from(this.servers.values())
+    for (const server of servers) {
       if (server.status === 'running') {
         tools.push(...server.tools)
       }
@@ -549,11 +693,12 @@ export class MCPHostMain extends EventEmitter {
   findTool(name: string, serverId?: string): MCPTool | null {
     if (serverId) {
       const server = this.servers.get(serverId)
-      return server?.tools.find(t => t.name === name) || null
+      return server?.tools.find((t: MCPTool) => t.name === name) || null
     }
 
-    for (const server of this.servers.values()) {
-      const tool = server.tools.find(t => t.name === name)
+    const servers = Array.from(this.servers.values())
+    for (const server of servers) {
+      const tool = server.tools.find((t: MCPTool) => t.name === name)
       if (tool) return tool
     }
 

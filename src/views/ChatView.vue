@@ -397,11 +397,7 @@ ${JSON.stringify(toolResult.result, null, 2)}
    - 内容要简洁，避免过长的文本
 2. 如果是天气信息，请整理成结构化的天气报告
 3. 如果是新闻信息，请总结要点
-4. 使用markdown格式，让信息更清晰易读
-5. 表格中的长URL请用简短的链接文本替代
-6. 直接返回整理后的内容，不要包含"根据工具执行结果"等前缀
-
-请用中文回复，语言自然流畅。`
+4. 使用中文回复，语言自然流畅。`
 
         // 调用LLM生成总结（不使用流式输出，等待完整结果）
         console.log('🔄 开始生成工具结果总结...')
@@ -483,10 +479,6 @@ const checkLLMResponseForToolCalls = async (llmResponse: string) => {
   }
 }
 
-
-
-
-
 // 执行对话动作
 const executeDialogueActions = async (actions: any[]) => {
   for (const action of actions) {
@@ -512,6 +504,33 @@ const executeDialogueActions = async (actions: any[]) => {
             console.error('跳转失败:', error)
             // 回退到直接修改 hash
             window.location.hash = action.payload.url
+          }
+        }
+        break
+        
+      case 'navigation':
+        // 处理导航动作
+        console.log('执行导航:', action.payload.path)
+        if (action.payload.path) {
+          try {
+            // 处理带 hash 的路径
+            if (action.payload.path.startsWith('/')) {
+              // 如果是完整的路径，直接使用 Vue Router 跳转
+              await $router.push(action.payload.path)
+            } else if (action.payload.path.startsWith('#')) {
+              // 如果是 hash 路径，直接修改 location hash
+              window.location.hash = action.payload.path
+            } else {
+              // 其他情况，添加 # 前缀
+              window.location.hash = `#${action.payload.path}`
+            }
+            console.log('导航成功')
+          } catch (error) {
+            console.error('导航失败:', error)
+            // 回退到直接修改 hash
+            window.location.hash = action.payload.path.startsWith('#') ? 
+              action.payload.path : 
+              `#${action.payload.path}`
           }
         }
         break
