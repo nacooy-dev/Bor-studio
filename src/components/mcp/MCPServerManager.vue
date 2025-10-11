@@ -2,14 +2,55 @@
   <div class="mcp-server-manager">
     <div class="header">
       <h3>MCP 服务器管理</h3>
-      <button @click="showAddDialog = true" class="btn-primary">
-        <Plus class="w-4 h-4" />
-        添加服务器
+      <div class="header-actions">
+        <button @click="activeTab = 'marketplace'" class="btn-secondary">
+          <Search class="w-4 h-4" />
+          服务器市场
+        </button>
+        <button @click="showAddCustomDialog = true" class="btn-secondary">
+          <Plus class="w-4 h-4" />
+          添加自定义服务器
+        </button>
+        <button @click="showAddDialog = true" class="btn-primary">
+          <Plus class="w-4 h-4" />
+          添加服务器
+        </button>
+      </div>
+    </div>
+
+    <!-- 导航标签 -->
+    <div class="nav-tabs">
+      <button
+        :class="['nav-tab', { active: activeTab === 'servers' }]"
+        @click="activeTab = 'servers'"
+      >
+        已安装服务器
+      </button>
+      <button
+        :class="['nav-tab', { active: activeTab === 'marketplace' }]"
+        @click="activeTab = 'marketplace'"
+      >
+        服务器市场
+      </button>
+      <button
+        :class="['nav-tab', { active: activeTab === 'tools' }]"
+        @click="activeTab = 'tools'"
+      >
+        可用工具
+      </button>
+      <button
+        :class="['nav-tab', { active: activeTab === 'ai' }]"
+        @click="activeTab = 'ai'"
+      >
+        AI 能力
       </button>
     </div>
 
-    <!-- 服务器列表 -->
-    <div class="servers-list">
+    <!-- 内容区域 -->
+    <div class="tab-content">
+      <!-- 已安装服务器 -->
+      <div v-if="activeTab === 'servers'" class="servers-tab">
+        <div class="servers-list">
       <div v-if="servers.length === 0" class="empty-state">
         <Server class="w-12 h-12 text-gray-400" />
         <p class="text-gray-500">暂无MCP服务器</p>
@@ -78,6 +119,15 @@
           </button>
           
           <button 
+            @click="editServer(server)"
+            :disabled="loading"
+            class="btn-secondary"
+          >
+            <Settings class="w-4 h-4" />
+            编辑
+          </button>
+          
+          <button 
             @click="removeServer(server.id)"
             :disabled="loading || server.status === 'running'"
             class="btn-danger"
@@ -86,6 +136,60 @@
             删除
           </button>
         </div>
+      </div>
+        </div>
+      </div>
+
+      <!-- 服务器市场 -->
+      <div v-if="activeTab === 'marketplace'" class="marketplace-tab">
+        <MCPMarketplace />
+      </div>
+
+      <!-- 可用工具 -->
+      <div v-if="activeTab === 'tools'" class="tools-tab">
+        <div class="section-header">
+          <h3>可用的 MCP 工具</h3>
+          <button @click="loadTools" class="btn-secondary">
+            <Wrench class="w-4 h-4" />
+            刷新工具
+          </button>
+        </div>
+
+        <div v-if="tools.length === 0" class="empty-state">
+          <Wrench class="w-8 h-8 text-gray-400" />
+          <p>没有发现可用的工具</p>
+          <p class="text-sm text-gray-400">请先安装一些 MCP 服务器</p>
+        </div>
+
+        <div v-else class="tools-grid">
+          <div
+            v-for="tool in tools"
+            :key="`${tool.server}-${tool.name}`"
+            class="tool-card-simple"
+          >
+            <div class="tool-info">
+              <h4>{{ tool.name }}</h4>
+              <p>{{ tool.description }}</p>
+              <div class="tool-meta">
+                <span class="tool-server">{{ tool.server }}</span>
+              </div>
+            </div>
+            <div class="tool-actions">
+              <button
+                class="btn-test"
+                @click="testTool(tool)"
+                :disabled="testingTool === tool.name"
+              >
+                {{ testingTool === tool.name ? '测试中...' : '测试工具' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI 能力 -->
+      <div v-if="activeTab === 'ai'" class="ai-tab">
+        <AICapabilities />
       </div>
     </div>
 
@@ -198,6 +302,107 @@
       </div>
     </div>
 
+    <!-- 编辑服务器对话框 -->
+    <div v-if="showEditDialog" class="dialog-overlay">
+      <div class="dialog-backdrop" @click="cancelEdit"></div>
+      <div class="dialog" @click.stop>
+        <div class="dialog-header">
+          <h3>编辑MCP服务器</h3>
+          <button @click="cancelEdit" class="close-btn">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div class="dialog-content">
+          <div class="form-group">
+            <label>服务器ID</label>
+            <input 
+              v-model="editingServer.id" 
+              type="text" 
+              disabled
+              class="disabled"
+            />
+            <small class="form-hint">服务器ID不能修改</small>
+          </div>
+          
+          <div class="form-group">
+            <label>服务器名称</label>
+            <input 
+              v-model="editingServer.name" 
+              type="text" 
+              placeholder="例如: My MCP Server"
+              required
+            />
+          </div>
+          
+          <div class="form-group">
+            <label>描述</label>
+            <textarea 
+              v-model="editingServer.description" 
+              placeholder="服务器描述（可选）"
+              rows="2"
+            ></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label>命令</label>
+            <select v-model="editingServer.command">
+              <option value="uvx">uvx (Python包)</option>
+              <option value="npx">npx (Node.js包)</option>
+              <option value="node">node (本地脚本)</option>
+              <option value="python">python (Python脚本)</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label>参数</label>
+            <input 
+              v-model="argsText" 
+              type="text" 
+              placeholder="例如: server-name --option value"
+            />
+            <small class="form-hint">用空格分隔多个参数</small>
+          </div>
+          
+          <div class="form-group">
+            <label>工作目录</label>
+            <input 
+              v-model="editingServer.cwd" 
+              type="text" 
+              placeholder="例如: /path/to/directory（可选）"
+            />
+          </div>
+          
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input 
+                v-model="editingServer.autoStart" 
+                type="checkbox"
+              />
+              <span class="checkmark"></span>
+              自动启动
+            </label>
+          </div>
+        </div>
+
+        <div class="dialog-actions">
+          <button @click="cancelEdit" class="btn-secondary">
+            取消
+          </button>
+          <button @click="updateServer" :disabled="loading" class="btn-primary">
+            {{ loading ? '更新中...' : '更新服务器' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 添加自定义服务器对话框 -->
+    <AddCustomServerDialog 
+      v-if="showAddCustomDialog"
+      @close="showAddCustomDialog = false"
+      @added="onCustomServerAdded"
+    />
+
     <!-- 工具查看对话框 -->
     <div v-if="showToolsDialog" class="dialog-overlay" @click="showToolsDialog = false">
       <div class="dialog large" @click.stop>
@@ -246,18 +451,26 @@
 import { ref, computed, onMounted } from 'vue'
 import { 
   Plus, Server, Terminal, Hash, AlertCircle, Play, Square, 
-  Wrench, Trash2, X, FileText, Search, Database 
+  Wrench, Trash2, X, FileText, Search, Database, Settings 
 } from 'lucide-vue-next'
 import { mcpService } from '@/services/mcp'
 import type { MCPServerConfig } from '@/types'
+import MCPMarketplace from './MCPMarketplace.vue'
+import AICapabilities from './AICapabilities.vue'
+import AddCustomServerDialog from './AddCustomServerDialog.vue'
 
 // 响应式数据
+const activeTab = ref<'servers' | 'marketplace' | 'tools' | 'ai'>('servers')
 const servers = ref<any[]>([])
 const tools = ref<any[]>([])
 const loading = ref(false)
 const showAddDialog = ref(false)
+const showAddCustomDialog = ref(false)
+const showEditDialog = ref(false)
 const showToolsDialog = ref(false)
 const selectedServer = ref<any>(null)
+const editingServer = ref<any>(null)
+const testingTool = ref('')
 
 // 新服务器表单
 const newServer = ref<MCPServerConfig>({
@@ -355,6 +568,59 @@ const addServer = async () => {
   }
 }
 
+const editServer = (server: any) => {
+  editingServer.value = { ...server.config }
+  argsText.value = server.config.args.join(' ')
+  showEditDialog.value = true
+}
+
+const updateServer = async () => {
+  if (!editingServer.value) return
+  
+  loading.value = true
+  try {
+    // 处理参数
+    const args = argsText.value.trim() 
+      ? argsText.value.trim().split(/\s+/) 
+      : []
+    
+    const updatedConfig = {
+      ...editingServer.value,
+      args
+    }
+    
+    const result = await mcpService.updateServer(editingServer.value.id, updatedConfig)
+    
+    if (result.success) {
+      showEditDialog.value = false
+      editingServer.value = null
+      argsText.value = ''
+      await loadServers()
+    } else {
+      alert(result.error || '更新服务器失败')
+    }
+  } catch (error) {
+    console.error('更新服务器失败:', error)
+    alert('更新服务器失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const cancelEdit = () => {
+  showEditDialog.value = false
+  editingServer.value = null
+  argsText.value = ''
+}
+
+const onCustomServerAdded = async (server: MCPServerConfig) => {
+  console.log('✅ 自定义服务器已添加:', server.name)
+  await loadServers()
+  
+  // 可选：自动切换到服务器列表标签
+  activeTab.value = 'servers'
+}
+
 const removeServer = async (serverId: string) => {
   if (!confirm('确定要删除这个服务器吗？')) return
   
@@ -429,6 +695,37 @@ const getRiskText = (risk: string) => {
   return riskMap[risk] || risk
 }
 
+const testTool = async (tool: any) => {
+  testingTool.value = tool.name
+  try {
+    let testParams = {}
+    
+    // 根据工具类型生成测试参数
+    if (tool.name === 'get_time') {
+      testParams = { format: 'local' }
+    } else if (tool.name === 'calculate') {
+      testParams = { expression: '2 + 2' }
+    } else if (tool.name === 'remember') {
+      testParams = { key: 'test', value: 'test value' }
+    }
+    
+    const result = await mcpService.executeTool({
+      tool: tool.name,
+      parameters: testParams
+    })
+    
+    if (result.success) {
+      alert(`✅ 工具 ${tool.name} 测试成功！\n结果: ${JSON.stringify(result.data, null, 2)}`)
+    } else {
+      alert(`❌ 工具 ${tool.name} 测试失败: ${result.error}`)
+    }
+  } catch (error) {
+    alert(`❌ 测试失败: ${error instanceof Error ? error.message : '未知错误'}`)
+  } finally {
+    testingTool.value = ''
+  }
+}
+
 const getPresetIcon = (presetId: string) => {
   const iconMap = {
     filesystem: FileText,
@@ -457,6 +754,66 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 24px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.nav-tabs {
+  display: flex;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 24px;
+}
+
+:deep(.dark) .nav-tabs,
+.dark .nav-tabs {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-tab {
+  flex: 1;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #8e8e93;
+  transition: all 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.nav-tab:hover {
+  background: rgba(255, 255, 255, 0.5);
+  color: #1d1d1f;
+}
+
+.nav-tab.active {
+  background: rgba(255, 255, 255, 0.9);
+  color: #1d1d1f;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+:deep(.dark) .nav-tab:hover,
+.dark .nav-tab:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:deep(.dark) .nav-tab.active,
+.dark .nav-tab.active {
+  background: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.tab-content {
+  min-height: 400px;
 }
 
 .header h3 {
@@ -938,6 +1295,21 @@ onMounted(async () => {
   box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
 }
 
+.form-group input.disabled,
+.form-group input:disabled {
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.5);
+  cursor: not-allowed;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.form-hint {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.6);
+  margin-top: 4px;
+  display: block;
+}
+
 .form-group input[type="checkbox"] {
   margin-right: 8px;
   accent-color: rgba(0, 122, 255, 0.8);
@@ -1089,5 +1461,141 @@ onMounted(async () => {
 :deep(.dark) .tool-schema pre,
 .dark .tool-schema pre {
   background: rgba(255, 255, 255, 0.1);
+}
+
+/* 新增的工具标签页样式 */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.section-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+:deep(.dark) .section-header h3,
+.dark .section-header h3 {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.tool-card-simple {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.tool-card-simple:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+:deep(.dark) .tool-card-simple,
+.dark .tool-card-simple {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.tool-card-simple .tool-info h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.tool-card-simple .tool-info p {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  color: #8e8e93;
+  line-height: 1.4;
+}
+
+:deep(.dark) .tool-card-simple .tool-info h4,
+.dark .tool-card-simple .tool-info h4 {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:deep(.dark) .tool-card-simple .tool-info p,
+.dark .tool-card-simple .tool-info p {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.tool-card-simple .tool-meta {
+  margin-bottom: 12px;
+}
+
+.tool-card-simple .tool-server {
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.05);
+  color: #8e8e93;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+:deep(.dark) .tool-card-simple .tool-server,
+.dark .tool-card-simple .tool-server {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.tool-card-simple .tool-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-test {
+  padding: 6px 12px;
+  background: rgba(52, 199, 89, 0.8);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.btn-test:hover:not(:disabled) {
+  background: rgba(52, 199, 89, 0.9);
+  transform: translateY(-1px);
+}
+
+.btn-test:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (max-width: 768px) {
+  .tools-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .nav-tabs {
+    flex-direction: column;
+  }
 }
 </style>

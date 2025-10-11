@@ -41,7 +41,7 @@
     },
     "filesystem": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/your-username"],
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "~/Documents"],
       "disabled": false,
       "autoApprove": [
         "read_file",
