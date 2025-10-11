@@ -1,5 +1,40 @@
 # 更新日志
 
+## [2.1.0] - 2025-10-11
+
+### 🐛 关键问题修复
+
+#### 🔧 Electron环境问题修复
+- **Electron版本升级**: 将Electron从版本28.3.3升级至38.2.2，解决Electron Helper参数错误问题
+- **窗口显示修复**: 修复应用程序窗口无法正常显示的问题
+- **环境变量优化**: 优化macOS打包应用的环境变量设置逻辑，确保仅在打包环境下扩展关键环境变量
+
+#### 🚀 MCP服务稳定性增强
+- **环境变量传递**: 增强MCP服务器进程的环境变量传递机制
+- **打包环境支持**: 修复打包后MCP服务无法正常启动的问题
+- **开发环境保护**: 保持开发环境的纯净性，避免不必要的环境变量干扰
+
+### 🔧 技术改进
+
+#### 🏗️ 主进程优化
+- **环境变量设置**: 在[electron/main.ts](file:///Users/lvyun/nacoolab/01-Lab-works/Bor-studio/electron/main.ts)中完善环境变量设置逻辑
+- **关键变量增强**: 添加更多关键环境变量：LOGNAME、LANG、TERM
+- **系统路径扩展**: 优化macOS系统工具路径的扩展机制
+
+#### ⚡ MCP适配器增强
+- **环境变量传递**: 在[src/lib/mcp-host/StandardMCPAdapter.ts](file:///Users/lvyun/nacoolab/01-Lab-works/Bor-studio/src/lib/mcp-host/StandardMCPAdapter.ts)中增强环境变量传递
+- **一致性保证**: 确保MCP服务器子进程能继承正确的环境变量
+
+#### 🛠️ MCP主机改进
+- **环境变量完善**: 在[src/lib/mcp-host/MCPHostMain.ts](file:///Users/lvyun/nacoolab/01-Lab-works/Bor-studio/src/lib/mcp-host/MCPHostMain.ts)中完善环境变量设置
+- **跨实现支持**: 保证在所有MCP实现中都有一致的环境变量支持
+
+### ✅ 验证结果
+- **应用启动**: 应用程序能够正常启动并显示窗口
+- **MCP服务**: MCP服务在打包环境下能够正常运行
+- **系统工具**: 系统工具（uvx、python等）可正常访问
+- **开发环境**: 开发环境功能保持完整，不受影响
+
 ## [2.0.0] - 2025-10-11
 
 ### 🎉 v2.0.0 重大更新 - 全面重构和性能提升

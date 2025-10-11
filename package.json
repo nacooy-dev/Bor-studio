@@ -14,7 +14,6 @@
     "electron:preview": "npm run electron:build && electron-builder --publish=never",
     "setup": "bash scripts/setup.sh",
     "setup:windows": "powershell -ExecutionPolicy Bypass -File scripts/setup.ps1",
-
     "start": "node test-app.js",
     "test:web": "node scripts/test-web.js",
     "pree2e": "npm run electron:build",
@@ -45,7 +44,7 @@
     "autoprefixer": "^10.4.16",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
-    "electron": "^28.1.4",
+    "electron": "^38.2.2",
     "electron-builder": "^24.9.1",
     "playwright": "^1.40.1",
     "postcss": "^8.4.32",

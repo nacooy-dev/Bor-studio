@@ -120,7 +120,9 @@ export class MCPHostMain extends EventEmitter {
           '/usr/bin',
           '/bin',
           '/usr/sbin',
-          '/sbin'
+          '/sbin',
+          '/Applications/Xcode.app/Contents/Developer/usr/bin',
+          '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin'
         ]
         
         // 扩展 PATH 环境变量
@@ -133,7 +135,44 @@ export class MCPHostMain extends EventEmitter {
           serverEnv.PATH = additionalPaths.join(':')
         }
         
+        // 确保关键环境变量存在
+        if (!serverEnv.HOME) {
+          serverEnv.HOME = process.env.HOME || '/Users/' + (process.env.USER || 'unknown')
+        }
+        
+        if (!serverEnv.TMPDIR) {
+          serverEnv.TMPDIR = '/tmp'
+        }
+        
+        if (!serverEnv.USER) {
+          serverEnv.USER = process.env.USER || 'unknown'
+        }
+        
+        if (!serverEnv.SHELL) {
+          serverEnv.SHELL = '/bin/zsh'
+        }
+        
+        // 添加更多可能需要的环境变量
+        if (!serverEnv.LOGNAME) {
+          serverEnv.LOGNAME = serverEnv.USER
+        }
+        
+        if (!serverEnv.LANG) {
+          serverEnv.LANG = 'en_US.UTF-8'
+        }
+        
+        if (!serverEnv.TERM) {
+          serverEnv.TERM = 'xterm-256color'
+        }
+        
         console.log('🔧 为 MCP 服务器设置 PATH 环境变量:', serverEnv.PATH)
+        console.log('🔧 为 MCP 服务器设置 HOME 环境变量:', serverEnv.HOME)
+        console.log('🔧 为 MCP 服务器设置 TMPDIR 环境变量:', serverEnv.TMPDIR)
+        console.log('🔧 为 MCP 服务器设置 USER 环境变量:', serverEnv.USER)
+        console.log('🔧 为 MCP 服务器设置 SHELL 环境变量:', serverEnv.SHELL)
+        console.log('🔧 为 MCP 服务器设置 LOGNAME 环境变量:', serverEnv.LOGNAME)
+        console.log('🔧 为 MCP 服务器设置 LANG 环境变量:', serverEnv.LANG)
+        console.log('🔧 为 MCP 服务器设置 TERM 环境变量:', serverEnv.TERM)
       }
 
       // 创建子进程，使用优化的启动参数

@@ -88,7 +88,9 @@ function setupEnvironment(): void {
         '/usr/bin',
         '/bin',
         '/usr/sbin',
-        '/sbin'
+        '/sbin',
+        '/Applications/Xcode.app/Contents/Developer/usr/bin',
+        '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin'
       ]
       
       // 如果 PATH 已经存在，扩展它而不是覆盖
@@ -101,7 +103,44 @@ function setupEnvironment(): void {
         process.env.PATH = additionalPaths.join(':')
       }
       
+      // 确保关键环境变量存在
+      if (!process.env.HOME) {
+        process.env.HOME = process.env.HOME || process.env.USERPROFILE || '/Users/' + (process.env.USER || 'unknown')
+      }
+      
+      if (!process.env.TMPDIR) {
+        process.env.TMPDIR = '/tmp'
+      }
+      
+      if (!process.env.USER) {
+        process.env.USER = process.env.USER || 'unknown'
+      }
+      
+      if (!process.env.SHELL) {
+        process.env.SHELL = '/bin/zsh'
+      }
+      
+      // 添加更多可能需要的环境变量
+      if (!process.env.LOGNAME) {
+        process.env.LOGNAME = process.env.USER
+      }
+      
+      if (!process.env.LANG) {
+        process.env.LANG = 'en_US.UTF-8'
+      }
+      
+      if (!process.env.TERM) {
+        process.env.TERM = 'xterm-256color'
+      }
+      
       console.log('🔧 设置 PATH 环境变量:', process.env.PATH)
+      console.log('🔧 设置 HOME 环境变量:', process.env.HOME)
+      console.log('🔧 设置 TMPDIR 环境变量:', process.env.TMPDIR)
+      console.log('🔧 设置 USER 环境变量:', process.env.USER)
+      console.log('🔧 设置 SHELL 环境变量:', process.env.SHELL)
+      console.log('🔧 设置 LOGNAME 环境变量:', process.env.LOGNAME)
+      console.log('🔧 设置 LANG 环境变量:', process.env.LANG)
+      console.log('🔧 设置 TERM 环境变量:', process.env.TERM)
     } else {
       console.log('🔧 在开发环境中，不修改环境变量')
     }
