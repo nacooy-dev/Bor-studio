@@ -217,6 +217,18 @@ export async function fetchAwesomeServers(): Promise<MCPServerTemplate[]> {
         'SPOTIFY_CLIENT_SECRET': '<client_secret>'
       },
       autoStart: false
+    },
+    {
+      id: 'community-chrome-devtools',
+      name: 'Chrome DevTools MCP',
+      description: 'Control and inspect a live Chrome browser with full DevTools access',
+      category: 'development',
+      command: 'npx',
+      args: ['-y', 'chrome-devtools-mcp@latest'],
+      homepage: 'https://github.com/ChromeDevTools/chrome-devtools-mcp',
+      tags: ['community', 'browser', 'debugging', 'automation', 'performance'],
+      requirements: ['Node.js', 'Chrome'],
+      autoStart: false
     }
   ]
   
@@ -462,7 +474,9 @@ class ExternalRegistryCache {
       // 限制缓存大小，避免内存泄漏
       if (this.cache.size >= this.MAX_CACHE_SIZE) {
         const oldestKey = this.cache.keys().next().value
-        this.cache.delete(oldestKey)
+        if (oldestKey !== undefined) {
+          this.cache.delete(oldestKey)
+        }
       }
       
       this.cache.set(key, { data, timestamp: now })

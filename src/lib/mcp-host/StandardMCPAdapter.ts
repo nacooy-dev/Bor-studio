@@ -73,6 +73,15 @@ export class StandardMCPAdapter extends EventEmitter {
     this.servers.set(config.id, server)
     this.emit('server_added', this.convertToLegacyFormat(server))
 
+    // 保存服务器配置（如果在 Electron 环境中）
+    if (typeof window !== 'undefined' && (window as any).electronAPI && (window as any).electronAPI.mcp) {
+      try {
+        await (window as any).electronAPI.mcp.addServer(config)
+      } catch (error) {
+        console.error('保存服务器配置失败:', error)
+      }
+    }
+
     if (config.autoStart) {
       await this.startServer(config.id)
     }
@@ -101,6 +110,11 @@ export class StandardMCPAdapter extends EventEmitter {
 
     try {
       console.log(`🚀 启动标准 MCP 服务器: ${serverId}`)
+      console.log(`🔧 服务器配置:`, {
+        command: server.config.command,
+        args: server.config.args,
+        cwd: server.config.cwd || process.cwd()
+      })
       
       // 创建标准 MCP 客户端
       const client = new Client({
@@ -114,11 +128,47 @@ export class StandardMCPAdapter extends EventEmitter {
         }
       })
 
+      // 确保环境变量包含系统路径，解决打包应用中找不到 uvx 的问题
+      const serverEnv: Record<string, string> = {}
+      
+      // 复制所有环境变量，过滤掉 undefined 值
+      for (const [key, value] of Object.entries({ ...process.env, ...server.config.env })) {
+        if (value !== undefined) {
+          serverEnv[key] = value
+        }
+      }
+      
+      // 在 macOS 打包应用中，扩展 PATH 环境变量以包含系统工具路径
+      // 只在打包应用中执行此操作，避免影响开发环境
+      if (process.platform === 'darwin' && !process.env.VITE_DEV_SERVER_URL) {
+        const additionalPaths = [
+          '/usr/local/bin',
+          '/opt/homebrew/bin',
+          '/opt/homebrew/sbin',
+          '/usr/bin',
+          '/bin',
+          '/usr/sbin',
+          '/sbin'
+        ]
+        
+        // 扩展 PATH 环境变量
+        if (serverEnv.PATH) {
+          // 避免重复添加路径
+          const currentPaths = serverEnv.PATH.split(':')
+          const newPaths = additionalPaths.filter(p => !currentPaths.includes(p))
+          serverEnv.PATH = [...newPaths, ...currentPaths].join(':')
+        } else {
+          serverEnv.PATH = additionalPaths.join(':')
+        }
+        
+        console.log('🔧 为 MCP 服务器设置 PATH 环境变量:', serverEnv.PATH)
+      }
+
       // 创建传输层
       const transport = new StdioClientTransport({
         command: server.config.command,
         args: server.config.args,
-        env: { ...process.env, ...server.config.env },
+        env: serverEnv,  // 使用更新后的环境变量
         cwd: server.config.cwd || process.cwd()
       })
 
@@ -146,6 +196,7 @@ export class StandardMCPAdapter extends EventEmitter {
     } catch (error) {
       server.status = 'error'
       server.lastError = error instanceof Error ? error.message : 'Unknown error'
+      console.error(`❌ 启动标准 MCP 服务器失败 ${serverId}:`, error)
       this.emit('server_error', this.convertToLegacyFormat(server), error)
       throw error
     }
@@ -270,7 +321,8 @@ export class StandardMCPAdapter extends EventEmitter {
    */
   getAllTools(): MCPTool[] {
     const tools: MCPTool[] = []
-    for (const server of this.servers.values()) {
+    const servers = Array.from(this.servers.values())
+    for (const server of servers) {
       if (server.status === 'running') {
         tools.push(...server.tools)
       }
@@ -284,11 +336,12 @@ export class StandardMCPAdapter extends EventEmitter {
   findTool(name: string, serverId?: string): MCPTool | null {
     if (serverId) {
       const server = this.servers.get(serverId)
-      return server?.tools.find(t => t.name === name) || null
+      return server?.tools.find((t: any) => t.name === name) || null
     }
 
-    for (const server of this.servers.values()) {
-      const tool = server.tools.find(t => t.name === name)
+    const servers = Array.from(this.servers.values())
+    for (const server of servers) {
+      const tool = server.tools.find((t: any) => t.name === name)
       if (tool) return tool
     }
 

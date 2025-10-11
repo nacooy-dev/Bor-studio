@@ -33,6 +33,38 @@ const __dirname = dirname(__filename)
 // 简单的开发环境检测
 const isDev = process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL
 
+// 设置环境变量以确保打包应用能正确找到系统工具
+function setupEnvironment(): void {
+  // 在 macOS 上，打包的应用可能无法访问完整的 PATH
+  if (process.platform === 'darwin') {
+    // 添加常见的工具路径
+    const additionalPaths = [
+      '/usr/local/bin',
+      '/opt/homebrew/bin',
+      '/opt/homebrew/sbin',
+      '/usr/bin',
+      '/bin',
+      '/usr/sbin',
+      '/sbin'
+    ]
+    
+    // 如果 PATH 已经存在，扩展它而不是覆盖
+    if (process.env.PATH) {
+      // 避免重复添加路径
+      const currentPaths = process.env.PATH.split(':')
+      const newPaths = additionalPaths.filter(p => !currentPaths.includes(p))
+      process.env.PATH = [...newPaths, ...currentPaths].join(':')
+    } else {
+      process.env.PATH = additionalPaths.join(':')
+    }
+    
+    console.log('🔧 设置 PATH 环境变量:', process.env.PATH)
+  }
+}
+
+// 在创建窗口之前设置环境
+setupEnvironment()
+
 // 主窗口引用
 let mainWindow: BrowserWindow | null = null
 
@@ -100,6 +132,8 @@ async function initializeMCP(): Promise<void> {
     // MCP Host 事件监听
     mcpHost.on('server_added', (server) => {
       console.log(`✅ MCP服务器已添加: ${server.id}`)
+      // 保存服务器配置
+      saveServerConfig(server.config)
     })
 
     mcpHost.on('server_started', (server) => {
@@ -115,12 +149,55 @@ async function initializeMCP(): Promise<void> {
     })
 
     mcpHost.on('tools_discovered', (server, tools) => {
-      console.log(`🔧 发现工具 ${server.id}:`, tools.map(t => t.name))
+      console.log(`🔧 发现工具 ${server.id}:`, tools.map((t: any) => t.name))
     })
     
     console.log('✅ MCP Host initialized')
   } catch (error) {
     console.error('❌ MCP Host initialization failed:', error)
+  }
+}
+
+// 保存服务器配置到数据库
+async function saveServerConfig(config: any): Promise<void> {
+  try {
+    // 获取现有的服务器配置
+    let savedServers = []
+    try {
+      const existing = electronDatabase.getConfig('mcp_installed_servers', '[]')
+      savedServers = JSON.parse(existing)
+    } catch (e) {
+      savedServers = []
+    }
+    
+    // 检查服务器是否已存在
+    const existingIndex = savedServers.findIndex((s: any) => s.id === config.id)
+    if (existingIndex >= 0) {
+      // 更新现有服务器配置
+      savedServers[existingIndex] = config
+    } else {
+      // 添加新服务器配置
+      savedServers.push(config)
+    }
+    
+    // 保存到数据库
+    electronDatabase.setConfig('mcp_installed_servers', JSON.stringify(savedServers), 'mcp')
+    console.log(`💾 已保存服务器配置: ${config.id}`)
+  } catch (error) {
+    console.error('❌ 保存服务器配置失败:', error)
+  }
+}
+
+// 从数据库加载服务器配置
+async function loadServerConfigs(): Promise<any[]> {
+  try {
+    const saved = electronDatabase.getConfig('mcp_installed_servers', '[]')
+    const servers = JSON.parse(saved)
+    console.log(`📂 已加载 ${servers.length} 个服务器配置`)
+    return servers
+  } catch (error) {
+    console.error('❌ 加载服务器配置失败:', error)
+    return []
   }
 }
 
@@ -168,14 +245,76 @@ function setupDatabaseHandlers(): void {
   console.log('✅ Database IPC handlers registered')
 }
 
+// 设置自定义 MCP 服务器管理IPC处理器
+function setupCustomMCPServerHandlers(): void {
+  // 获取自定义 MCP 服务器
+  ipcMain.handle('mcp:get-custom-servers', async () => {
+    try {
+      const customServers = electronDatabase.getConfig('mcp_custom_servers', '[]')
+      return { success: true, data: JSON.parse(customServers) }
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  // 添加自定义 MCP 服务器
+  ipcMain.handle('mcp:add-custom-server', async (_, serverData: string) => {
+    try {
+      const servers = JSON.parse(electronDatabase.getConfig('mcp_custom_servers', '[]'))
+      const newServer = JSON.parse(serverData)
+      servers.push(newServer)
+      electronDatabase.setConfig('mcp_custom_servers', JSON.stringify(servers), 'mcp')
+      return { success: true }
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  // 更新自定义 MCP 服务器
+  ipcMain.handle('mcp:update-custom-server', async (_, serverId: string, serverData: string) => {
+    try {
+      const servers = JSON.parse(electronDatabase.getConfig('mcp_custom_servers', '[]'))
+      const updatedServer = JSON.parse(serverData)
+      const index = servers.findIndex((s: any) => s.id === serverId)
+      if (index !== -1) {
+        servers[index] = updatedServer
+        electronDatabase.setConfig('mcp_custom_servers', JSON.stringify(servers), 'mcp')
+        return { success: true }
+      } else {
+        return { success: false, error: 'Server not found' }
+      }
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  // 删除自定义 MCP 服务器
+  ipcMain.handle('mcp:remove-custom-server', async (_, serverId: string) => {
+    try {
+      const servers = JSON.parse(electronDatabase.getConfig('mcp_custom_servers', '[]'))
+      const filteredServers = servers.filter((s: any) => s.id !== serverId)
+      electronDatabase.setConfig('mcp_custom_servers', JSON.stringify(filteredServers), 'mcp')
+      return { success: true }
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  console.log('✅ Custom MCP Server IPC handlers registered')
+}
+
 // 设置MCP IPC处理器
 function setupMCPHandlers(): void {
   // 添加MCP服务器
   ipcMain.handle('mcp:add-server', async (_, config: MCPServerConfig) => {
     try {
       await mcpHost.addServer(config)
+      
+      // 保存服务器配置到数据库
+      await saveServerConfig(config)
+      
       return { success: true }
-    } catch (error) {
+    } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
@@ -185,7 +324,7 @@ function setupMCPHandlers(): void {
     try {
       await mcpHost.startServer(serverId)
       return { success: true }
-    } catch (error) {
+    } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
@@ -195,7 +334,7 @@ function setupMCPHandlers(): void {
     try {
       await mcpHost.stopServer(serverId)
       return { success: true }
-    } catch (error) {
+    } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
@@ -217,7 +356,7 @@ function setupMCPHandlers(): void {
         // 不包含 process 和 messageBuffer
       }))
       return { success: true, data: cleanServers }
-    } catch (error) {
+    } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
@@ -238,7 +377,7 @@ function setupMCPHandlers(): void {
       }))
       
       return { success: true, data: cleanTools }
-    } catch (error) {
+    } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
@@ -248,7 +387,7 @@ function setupMCPHandlers(): void {
     try {
       const result = await mcpHost.executeTool(call)
       return { success: true, data: result }
-    } catch (error) {
+    } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
@@ -267,7 +406,7 @@ function setupMCPHandlers(): void {
       } : null
       
       return { success: true, data: cleanTool }
-    } catch (error) {
+    } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
@@ -276,8 +415,29 @@ function setupMCPHandlers(): void {
   ipcMain.handle('mcp:remove-server', async (_, serverId: string) => {
     try {
       await mcpHost.removeServer(serverId)
+      
+      // 从数据库中删除服务器配置
+      try {
+        let savedServers = []
+        try {
+          const existing = electronDatabase.getConfig('mcp_installed_servers', '[]')
+          savedServers = JSON.parse(existing)
+        } catch (e) {
+          savedServers = []
+        }
+        
+        // 过滤掉要删除的服务器
+        const filteredServers = savedServers.filter((s: any) => s.id !== serverId)
+        
+        // 保存更新后的配置
+        electronDatabase.setConfig('mcp_installed_servers', JSON.stringify(filteredServers), 'mcp')
+        console.log(`🗑️ 已从数据库中删除服务器配置: ${serverId}`)
+      } catch (dbError) {
+        console.error(`❌ 从数据库中删除服务器配置失败 ${serverId}:`, dbError)
+      }
+      
       return { success: true }
-    } catch (error) {
+    } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
@@ -293,10 +453,14 @@ app.whenReady().then(async () => {
   // 初始化数据库
   await electronDatabase.initialize()
   setupDatabaseHandlers()
+  setupCustomMCPServerHandlers()
 
   // 初始化MCP
   await initializeMCP()
   setupMCPHandlers()
+  
+  // 加载已保存的服务器配置
+  await loadSavedServers()
 
   createWindow()
 
@@ -305,6 +469,34 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
+
+// 加载已保存的服务器配置
+async function loadSavedServers(): Promise<void> {
+  try {
+    console.log('📂 正在加载已保存的服务器配置...')
+    const savedServers = await loadServerConfigs()
+    
+    // 添加每个保存的服务器到 MCP Host
+    for (const config of savedServers) {
+      try {
+        await mcpHost.addServer(config)
+        console.log(`✅ 已加载服务器: ${config.name} (${config.id})`)
+        
+        // 如果配置为自动启动，则启动服务器
+        if (config.autoStart) {
+          console.log(`🚀 正在自动启动服务器: ${config.name} (${config.id})`)
+          await mcpHost.startServer(config.id)
+        }
+      } catch (error) {
+        console.error(`❌ 加载服务器失败 ${config.id}:`, error)
+      }
+    }
+    
+    console.log('✅ 已完成服务器配置加载')
+  } catch (error) {
+    console.error('❌ 加载服务器配置时出错:', error)
+  }
+}
 
 // 应用退出前清理资源
 app.on('before-quit', async () => {
@@ -439,9 +631,9 @@ ipcMain.handle('start-speech-recognition', async () => {
     } else {
       return { success: false, error: '不支持的操作系统' }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('语音识别错误:', error)
-    return { success: false, error: error.message }
+    return { success: false, error: (error as Error).message }
   }
 })
 
@@ -469,8 +661,8 @@ async function startMacOSSpeechRecognition(): Promise<{ success: boolean; text?:
       success: true, 
       text: "请使用系统语音输入功能（按 Fn 键两次）或直接输入文字" 
     }
-  } catch (error) {
-    return { success: false, error: error.message }
+  } catch (error: any) {
+    return { success: false, error: (error as Error).message }
   }
 }
 
@@ -490,8 +682,8 @@ async function startWindowsSpeechRecognition(): Promise<{ success: boolean; text
     const { stdout } = await execAsync(`powershell -Command "${script}"`)
     
     return { success: true, text: stdout.trim() }
-  } catch (error) {
-    return { success: false, error: error.message }
+  } catch (error: any) {
+    return { success: false, error: (error as Error).message }
   }
 }
 

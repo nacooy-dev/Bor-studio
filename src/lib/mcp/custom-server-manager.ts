@@ -23,7 +23,78 @@ export class CustomServerManager {
   private initialized = false
 
   constructor() {
-    this.loadCustomServers()
+    // 不在构造函数中初始化，等待应用准备就绪
+  }
+
+  /**
+   * 初始化自定义服务器管理器
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) {
+      return
+    }
+
+    try {
+      // 尝试从 Electron 数据库加载自定义服务器
+      const stored = await this.loadFromDatabase()
+      if (stored && Array.isArray(stored)) {
+        stored.forEach((record: CustomServerRecord) => {
+          this.customServers.set(record.id, record)
+        })
+        console.log(`✅ 从数据库加载了 ${this.customServers.size} 个自定义服务器`)
+      } else {
+        // 如果数据库中没有，则尝试从 localStorage 加载（兼容旧版本）
+        this.loadFromLocalStorage()
+      }
+    } catch (error) {
+      console.warn('⚠️ 加载自定义服务器失败，尝试从 localStorage 加载:', error)
+      try {
+        this.loadFromLocalStorage()
+      } catch (localStorageError) {
+        console.warn('⚠️ 从 localStorage 加载自定义服务器也失败:', localStorageError)
+      }
+    }
+    
+    this.initialized = true
+  }
+
+  /**
+   * 从 Electron 数据库加载自定义服务器
+   */
+  private async loadFromDatabase(): Promise<CustomServerRecord[] | null> {
+    try {
+      // 在 Electron 环境中，通过 IPC 调用获取配置
+      if (typeof window !== 'undefined' && (window as any).electronAPI) {
+        const result = await (window as any).electronAPI.getConfig(this.STORAGE_KEY, null)
+        if (result) {
+          return JSON.parse(result)
+        }
+      }
+      return null
+    } catch (error) {
+      console.warn('从数据库加载自定义服务器失败:', error)
+      return null
+    }
+  }
+
+  /**
+   * 从 localStorage 加载自定义服务器（兼容旧版本）
+   */
+  private loadFromLocalStorage(): void {
+    try {
+      const stored = localStorage.getItem(this.STORAGE_KEY)
+      if (stored) {
+        const data = JSON.parse(stored)
+        if (data && Array.isArray(data)) {
+          data.forEach((record: CustomServerRecord) => {
+            this.customServers.set(record.id, record)
+          })
+          console.log(`✅ 从 localStorage 加载了 ${this.customServers.size} 个自定义服务器`)
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ 从 localStorage 加载自定义服务器失败:', error)
+    }
   }
 
   /**
@@ -314,34 +385,19 @@ export class CustomServerManager {
   }
 
   /**
-   * 加载自定义服务器
-   */
-  private loadCustomServers(): void {
-    try {
-      const stored = localStorage.getItem(this.STORAGE_KEY)
-      if (stored) {
-        const data = JSON.parse(stored)
-        if (data && Array.isArray(data)) {
-          data.forEach((record: CustomServerRecord) => {
-            this.customServers.set(record.id, record)
-          })
-          console.log(`✅ 加载了 ${this.customServers.size} 个自定义服务器`)
-        }
-      }
-    } catch (error) {
-      console.warn('⚠️ 加载自定义服务器失败:', error)
-    }
-    
-    this.initialized = true
-  }
-
-  /**
-   * 保存自定义服务器
+   * 保存自定义服务器到 Electron 数据库
    */
   private async saveCustomServers(): Promise<void> {
     try {
       const data = Array.from(this.customServers.values())
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data))
+      
+      // 在 Electron 环境中，通过 IPC 调用保存配置
+      if (typeof window !== 'undefined' && (window as any).electronAPI) {
+        await (window as any).electronAPI.setConfig(this.STORAGE_KEY, JSON.stringify(data), 'mcp')
+      } else {
+        // 在非 Electron 环境中（如开发环境），使用 localStorage
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data))
+      }
     } catch (error) {
       console.error('❌ 保存自定义服务器失败:', error)
       throw error
@@ -353,7 +409,15 @@ export class CustomServerManager {
    */
   async clearAllCustomServers(): Promise<void> {
     this.customServers.clear()
-    localStorage.removeItem(this.STORAGE_KEY)
+    
+    // 在 Electron 环境中，通过 IPC 调用删除配置
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+      await (window as any).electronAPI.deleteConfig(this.STORAGE_KEY)
+    } else {
+      // 在非 Electron 环境中（如开发环境），使用 localStorage
+      localStorage.removeItem(this.STORAGE_KEY)
+    }
+    
     console.log('✅ 已清除所有自定义服务器')
   }
 }

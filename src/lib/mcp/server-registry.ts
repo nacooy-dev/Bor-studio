@@ -232,6 +232,18 @@ export const MCP_SERVER_REGISTRY: MCPServerTemplate[] = [
     autoStart: false
   },
   {
+    id: 'chrome-devtools',
+    name: 'Chrome DevTools',
+    description: 'Chrome浏览器控制和调试 - 控制和检查实时Chrome浏览器',
+    category: 'development',
+    command: 'npx',
+    args: ['-y', 'chrome-devtools-mcp@latest'],
+    homepage: 'https://github.com/ChromeDevTools/chrome-devtools-mcp',
+    tags: ['browser', 'debugging', 'automation', 'performance'],
+    requirements: ['Node.js', 'Chrome'],
+    autoStart: false
+  },
+  {
     id: 'sequential-thinking',
     name: 'Sequential Thinking',
     description: '结构化思维 - 动态问题解决和结构化思考工具',
