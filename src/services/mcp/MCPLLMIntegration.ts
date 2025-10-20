@@ -565,19 +565,20 @@ ${typeof result.result === 'string' ? result.result : JSON.stringify(result.resu
       // 清理标题中的数字前缀
       const cleanTitle = item.title.replace(/^\d+\.\s*/, '')
       if (item.url) {
-        // 将标题作为链接文本
+        // 将标题作为链接文本，使用更明确的Markdown格式
         parts.push(`**[${cleanTitle}](${item.url})**`)
+        // 同时添加一个单独的URL行，确保链接可见
+        parts.push(`🔗 ${item.url}`)
       } else {
         parts.push(`**${cleanTitle}**`)
       }
-    }
-    
-    if (item.url && !item.title) {
+    } else if (item.url) {
+      // 如果没有标题，直接显示URL作为链接
       parts.push(`🔗 [${item.url}](${item.url})`)
     }
     
     if (item.summary) {
-      parts.push(item.summary)
+      parts.push(`\n${item.summary}`)
     }
     
     return parts.join('\n')

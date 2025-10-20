@@ -32,7 +32,12 @@ export class GeneralResponseNode extends FlowNode {
     }
 
     try {
-      const intentData = input.data.intent
+      const intentData = input.data.intent || { 
+        primaryIntent: 'general_chat', 
+        confidence: 0.5, 
+        entities: [], 
+        context: {} 
+      }
       const originalInput = input.data.originalInput || ''
       const context = input.context
 

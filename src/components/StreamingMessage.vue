@@ -1,7 +1,16 @@
 <template>
   <div class="streaming-message">
-    <!-- 使用智能内容渲染器 -->
-    <ContentRenderer :content="displayContent" />
+    <!-- 检查是否为HTML内容 -->
+    <div 
+      v-if="isHTMLContent" 
+      v-html="displayContent"
+      class="html-content"
+    />
+    <!-- 否则使用内容渲染器 -->
+    <ContentRenderer 
+      v-else 
+      :content="displayContent" 
+    />
     
     <div v-if="isStreaming" class="streaming-indicator">
       <div class="cursor-blink">|</div>
@@ -24,6 +33,11 @@ const props = withDefaults(defineProps<Props>(), {
 
 const displayContent = ref('')
 const isAnimating = ref(false)
+
+// 检查是否为HTML内容
+const isHTMLContent = computed(() => {
+  return props.content.startsWith('<div class="search-results">')
+})
 
 // 打字机动画
 const animateText = async (targetContent: string) => {

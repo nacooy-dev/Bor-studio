@@ -8,21 +8,21 @@
   - 建立RenderRouter路由系统
   - _需求: 1.1, 2.1, 11.1, 12.1_
 
-- [ ] 1.1 定义核心接口和类型
+- [x] 1.1 定义核心接口和类型
   - 创建ContentRenderer接口
   - 定义ContentType枚举
   - 实现ParseResult和ContentSegment数据结构
   - 建立RenderOptions配置接口
   - _需求: 11.1, 12.2_
 
-- [ ] 1.2 实现ContentParser内容解析器
+- [x] 1.2 实现ContentParser内容解析器
   - 开发流式内容解析逻辑
   - 实现前100字符快速类型检测
   - 创建内容分割算法
   - 添加置信度评分机制
   - _需求: 11.1, 11.2, 8.3_
 
-- [ ] 1.3 构建RenderRouter路由系统
+- [x] 1.3 构建RenderRouter路由系统
   - 实现快速路径和智能路由
   - 创建渲染器选择算法
   - 建立性能监控集成
@@ -37,7 +37,7 @@
   - 开发MathRenderer数学公式渲染器
   - _需求: 1.1, 5.1, 6.1, 7.1_
 
-- [ ] 2.1 开发TextRenderer文本渲染器
+- [x] 2.1 开发TextRenderer文本渲染器
   - 集成marked Markdown解析器
   - 实现链接自动识别和渲染
   - 添加基础格式支持（粗体、斜体等）

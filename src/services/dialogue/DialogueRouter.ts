@@ -632,6 +632,139 @@ class GeneralChatHandler implements DialogueHandler {
     return true // 总是可以处理
   }
 
+  // 将搜索结果直接转换为HTML，避免Markdown解析问题
+  private convertSearchResultToHTML(resultText: string): string {
+    console.log('🔄 直接转换搜索结果为HTML')
+    
+    const lines = resultText.split('\n')
+    let html = `
+      <div class="search-results" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <div style="display: flex; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #e5e7eb;">
+          <span style="font-size: 20px; margin-right: 8px;">🔍</span>
+          <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: #1f2937;">搜索结果</h3>
+        </div>
+    `
+    
+    let currentItem: { title?: string, url?: string, summary?: string } = {}
+    let itemCount = 0
+    
+    for (const line of lines) {
+      const trimmedLine = line.trim()
+      
+      if (trimmedLine.match(/^\d+\./)) {
+        // 处理上一个项目
+        if (currentItem.title) {
+          html += this.formatSearchItemHTML(currentItem, ++itemCount)
+        }
+        currentItem = { title: trimmedLine.replace(/^\d+\.\s*/, '') }
+      } else if (trimmedLine.startsWith('URL:')) {
+        currentItem.url = trimmedLine.replace('URL:', '').trim()
+      } else if (trimmedLine.startsWith('Summary:')) {
+        currentItem.summary = trimmedLine.replace('Summary:', '').trim()
+      } else if (trimmedLine && !trimmedLine.startsWith('Found')) {
+        if (currentItem.summary) {
+          currentItem.summary += ' ' + trimmedLine
+        } else if (currentItem.title) {
+          currentItem.title += ' ' + trimmedLine
+        }
+      }
+    }
+    
+    // 处理最后一个项目
+    if (currentItem.title) {
+      html += this.formatSearchItemHTML(currentItem, ++itemCount)
+    }
+    
+    html += '</div>'
+    console.log('✅ HTML转换完成，共处理', itemCount, '个搜索结果')
+    return html
+  }
+
+  // 格式化单个搜索项为HTML
+  private formatSearchItemHTML(item: { title?: string, url?: string, summary?: string }, index: number): string {
+    const itemStyle = `
+      margin-bottom: 24px; 
+      padding: 20px; 
+      background: #ffffff;
+      border: 1px solid #e5e7eb; 
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      transition: all 0.2s ease;
+    `
+    
+    let html = `<div class="search-item" style="${itemStyle}" onmouseover="this.style.boxShadow='0 4px 12px rgba(0, 0, 0, 0.15)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0, 0, 0, 0.1)'">`
+    
+    // 添加序号
+    html += `<div style="display: flex; align-items: flex-start; gap: 12px;">`
+    html += `<span style="
+      display: inline-flex; 
+      align-items: center; 
+      justify-content: center;
+      width: 24px; 
+      height: 24px; 
+      background: #3b82f6; 
+      color: white; 
+      border-radius: 50%; 
+      font-size: 12px; 
+      font-weight: 600;
+      flex-shrink: 0;
+      margin-top: 2px;
+    ">${index}</span>`
+    
+    html += `<div style="flex: 1; min-width: 0;">`
+    
+    if (item.title && item.url) {
+      // 标题链接
+      html += `<h4 style="
+        margin: 0 0 8px 0; 
+        font-size: 16px;
+        line-height: 1.4;
+      "><a href="${item.url}" target="_blank" rel="noopener noreferrer" style="
+        color: #1d4ed8; 
+        text-decoration: none; 
+        font-weight: 600;
+        cursor: pointer;
+      " onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${item.title}</a></h4>`
+      
+      // URL链接
+      const displayUrl = item.url.length > 60 ? item.url.substring(0, 57) + '...' : item.url
+      html += `<div style="margin-bottom: 12px;">
+        <a href="${item.url}" target="_blank" rel="noopener noreferrer" style="
+          color: #059669; 
+          text-decoration: none; 
+          font-size: 14px;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          cursor: pointer;
+        " onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+          <span>🔗</span>
+          <span>${displayUrl}</span>
+        </a>
+      </div>`
+    } else if (item.title) {
+      html += `<h4 style="
+        margin: 0 0 8px 0; 
+        font-weight: 600;
+        font-size: 16px;
+        color: #1f2937;
+        line-height: 1.4;
+      ">${item.title}</h4>`
+    }
+    
+    if (item.summary) {
+      html += `<p style="
+        margin: 0; 
+        color: #4b5563; 
+        line-height: 1.6;
+        font-size: 14px;
+      ">${item.summary}</p>`
+    }
+    
+    html += `</div></div></div>`
+    return html
+  }
+
   async handle(userInput: string, intent: IntentResult, context: DialogueContext): Promise<DialogueResponse> {
     // 检测是否包含工具调用请求
     const toolCallRequest = mcpLLMIntegration.detectToolCall(userInput)
@@ -642,7 +775,28 @@ class GeneralChatHandler implements DialogueHandler {
       // 执行工具调用
       const toolResult = await mcpLLMIntegration.executeToolCall(toolCallRequest)
       
-      // 格式化结果
+      // 直接返回HTML格式的搜索结果，跳过LLM处理
+      if (toolResult.success && toolCallRequest.tool === 'search' && typeof toolResult.result === 'string') {
+        const htmlResult = this.convertSearchResultToHTML(toolResult.result)
+        
+        return {
+          message: htmlResult,
+          metadata: {
+            toolCall: true,
+            toolName: toolCallRequest.tool,
+            toolResult: toolResult,
+            requiresLLM: false,
+            isHTML: true // 标记为HTML内容
+          },
+          followUpQuestions: [
+            '继续搜索',
+            '查看更多结果',
+            '返回对话'
+          ]
+        }
+      }
+      
+      // 其他工具调用的格式化结果
       const resultMessage = mcpLLMIntegration.formatToolResult(toolResult)
       
       return {
@@ -651,7 +805,7 @@ class GeneralChatHandler implements DialogueHandler {
           toolCall: true,
           toolName: toolCallRequest.tool,
           toolResult: toolResult,
-          requiresLLM: false // 工具调用结果不需要再经过LLM
+          requiresLLM: false
         },
         followUpQuestions: toolResult.success ? [
           '继续使用工具',
