@@ -264,11 +264,11 @@ tool_call(query='查询内容')
           if (jsonStr.includes('"max_results"') && !jsonStr.includes('{"query"')) {
             // 如果有max_results但parameters不是对象，重构
             const maxResultsMatch = jsonStr.match(/"max_results":\s*(\d+)/)
-            const queryMatch = jsonStr.match(/"query":\s*"([^"]+)"/) || jsonStr.match(/成都天气/)
+            const queryMatch = jsonStr.match(/"query":\s*"([^"]+)"/)
             
             if (maxResultsMatch && queryMatch) {
               const maxResults = maxResultsMatch[1]
-              const query = typeof queryMatch === 'object' ? (queryMatch[1] || '成都天气') : '成都天气'
+              const query = typeof queryMatch === 'object' ? (queryMatch[1] || 'search query') : 'search query'
               
               // 重构parameters部分
               jsonStr = jsonStr.replace(/"parameters":[^}]*"max_results":\s*\d+[^}]*/, 
@@ -289,7 +289,7 @@ tool_call(query='查询内容')
           }
           
           // 9. 确保tool字段存在
-          if (!jsonStr.includes('"tool"') && (jsonStr.includes('search') || jsonStr.includes('成都天气'))) {
+          if (!jsonStr.includes('"tool"') && jsonStr.includes('search')) {
             jsonStr = jsonStr.replace(/"action":\s*"call_tool"/, '"action": "call_tool", "tool": "search"')
           }
           
@@ -488,6 +488,11 @@ tool_call(query='查询内容')
    */
   formatToolResult(result: ToolCallResult): string {
     if (result.success) {
+      // 特殊处理搜索结果，不使用代码块包装
+      if (result.toolName === 'search' && typeof result.result === 'string') {
+        return this.formatSearchResult(result.result)
+      }
+      
       return `🔧 **工具执行成功** (${result.toolName})
 
 **执行结果:**
@@ -499,6 +504,83 @@ ${typeof result.result === 'string' ? result.result : JSON.stringify(result.resu
 
 **错误信息:** ${result.error}`
     }
+  }
+
+  /**
+   * 格式化搜索结果，保持链接可点击
+   */
+  private formatSearchResult(resultText: string): string {
+    console.log('🔍 开始格式化搜索结果:', resultText.substring(0, 200) + '...')
+    
+    // 解析搜索结果文本
+    const lines = resultText.split('\n')
+    const formattedLines: string[] = []
+    
+    let currentItem: { title?: string, url?: string, summary?: string } = {}
+    
+    for (const line of lines) {
+      const trimmedLine = line.trim()
+      
+      if (trimmedLine.match(/^\d+\./)) {
+        // 新的搜索结果项开始
+        if (currentItem.title) {
+          const formatted = this.formatSearchItem(currentItem)
+          console.log('📝 格式化项目:', currentItem, '→', formatted)
+          formattedLines.push(formatted)
+        }
+        currentItem = { title: trimmedLine }
+      } else if (trimmedLine.startsWith('URL:')) {
+        currentItem.url = trimmedLine.replace('URL:', '').trim()
+      } else if (trimmedLine.startsWith('Summary:')) {
+        currentItem.summary = trimmedLine.replace('Summary:', '').trim()
+      } else if (trimmedLine && !trimmedLine.startsWith('Found')) {
+        // 继续当前项的内容
+        if (currentItem.summary) {
+          currentItem.summary += ' ' + trimmedLine
+        } else if (currentItem.title) {
+          currentItem.title += ' ' + trimmedLine
+        }
+      }
+    }
+    
+    // 处理最后一个项目
+    if (currentItem.title) {
+      const formatted = this.formatSearchItem(currentItem)
+      console.log('📝 格式化最后项目:', currentItem, '→', formatted)
+      formattedLines.push(formatted)
+    }
+    
+    const finalResult = `🔍 **搜索结果**\n\n${formattedLines.join('\n\n')}`
+    console.log('✅ 最终格式化结果:', finalResult)
+    return finalResult
+  }
+
+  /**
+   * 格式化单个搜索项
+   */
+  private formatSearchItem(item: { title?: string, url?: string, summary?: string }): string {
+    const parts: string[] = []
+    
+    if (item.title) {
+      // 清理标题中的数字前缀
+      const cleanTitle = item.title.replace(/^\d+\.\s*/, '')
+      if (item.url) {
+        // 将标题作为链接文本
+        parts.push(`**[${cleanTitle}](${item.url})**`)
+      } else {
+        parts.push(`**${cleanTitle}**`)
+      }
+    }
+    
+    if (item.url && !item.title) {
+      parts.push(`🔗 [${item.url}](${item.url})`)
+    }
+    
+    if (item.summary) {
+      parts.push(item.summary)
+    }
+    
+    return parts.join('\n')
   }
 
 
@@ -522,9 +604,7 @@ ${typeof result.result === 'string' ? result.result : JSON.stringify(result.resu
       
       const queryPatterns = [
         /"query"[^"]*"([^"]+)"/,
-        /"parameters"[^"]*"([^"]+)"/,
-        /成都天气/,
-        /天气/
+        /"parameters"[^"]*"([^"]+)"/
       ]
       
       const maxResultsPatterns = [
@@ -553,16 +633,12 @@ ${typeof result.result === 'string' ? result.result : JSON.stringify(result.resu
       }
       
       // 提取查询内容
-      let query = '成都天气' // 默认
+      let query = 'search query' // 默认
       for (const pattern of queryPatterns) {
         const match = fixed.match(pattern)
         if (match) {
           if (typeof match[1] === 'string') {
             query = match[1]
-          } else if (pattern.source.includes('成都天气')) {
-            query = '成都天气'
-          } else if (pattern.source.includes('天气')) {
-            query = '天气'
           }
           break
         }

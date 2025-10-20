@@ -101,6 +101,7 @@ import { llmManager } from '@/lib/llm-manager'
 import { DialogueRouter } from '@/services/dialogue/DialogueRouter'
 import { MessageFactory } from '@/utils/messageFactory'
 import { mcpService } from '@/services/mcp'
+import { flowIntegration } from '@/lib/flow-engine/FlowIntegration'
 import ChatMessage from '@/components/ChatMessage.vue'
 import ChatInput from '@/components/ChatInput.vue'
 
@@ -250,7 +251,41 @@ const handleAIResponse = async (userInput: string) => {
       .slice(-10)
       .filter(msg => msg.role !== 'system')
 
-    // 使用智能对话路由
+    console.log('🚀 尝试使用流程引擎处理用户输入...')
+
+    // 首先尝试使用流程引擎
+    try {
+      const flowResponse = await flowIntegration.processUserInput(
+        userInput,
+        conversationHistory,
+        {
+          sessionId: 'chat-session',
+          userId: 'user'
+        }
+      )
+
+      if (flowResponse.success) {
+        console.log('✅ 流程引擎处理成功')
+        
+        // 创建助手消息
+        const assistantMessage = MessageFactory.createAssistantMessage(flowResponse.content)
+        messages.value.push(assistantMessage)
+
+        // 显示建议（如果有）
+        if (flowResponse.suggestions.length > 0) {
+          console.log('💡 建议:', flowResponse.suggestions)
+          // 可以在UI中显示建议
+        }
+
+        return
+      } else {
+        console.log('⚠️ 流程引擎处理失败，回退到传统处理')
+      }
+    } catch (flowError) {
+      console.warn('⚠️ 流程引擎执行出错，回退到传统处理:', flowError)
+    }
+
+    // 回退到原有的对话路由处理
     const dialogueResponse = await dialogueRouter.routeDialogue(userInput, conversationHistory)
     
     console.log('对话路由结果:', dialogueResponse)
@@ -281,7 +316,7 @@ const handleAIResponse = async (userInput: string) => {
   } catch (error) {
     console.error('智能对话处理失败:', error)
     
-    // 回退到传统LLM处理
+    // 最终回退到传统LLM处理
     await handleLLMResponse(userInput)
   }
 }
