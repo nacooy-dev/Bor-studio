@@ -26,15 +26,32 @@ interface ContentBlock {
 }
 
 interface Props {
-  content: string
+  content: string | any
 }
 
 const props = defineProps<Props>()
 
+// 确保输入是字符串
+const normalizedContent = computed(() => {
+  if (!props.content) {
+    return ''
+  } else if (typeof props.content === 'string') {
+    return props.content
+  } else {
+    // 如果不是字符串，尝试转换为字符串
+    try {
+      return String(props.content)
+    } catch (e) {
+      console.warn('⚠️ Failed to convert content to string:', props.content)
+      return ''
+    }
+  }
+})
+
 // 智能内容分析和分块
 const contentBlocks = computed(() => {
   const blocks: ContentBlock[] = []
-  const content = props.content
+  const content = normalizedContent.value
 
   // 1. 提取代码块
   const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g
