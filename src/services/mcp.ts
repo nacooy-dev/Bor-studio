@@ -1,11 +1,12 @@
 /**
  * MCP服务层
- * 封装MCP相关的API调用
+ * 封装MCP相关的API调用 - 使用标准MCP协议
  */
 
 import type { MCPServerConfig, MCPToolCall, MCPAPI, ApiResponse } from '@/types'
 import { BuiltInMCPServer } from '@/lib/mcp/built-in-tools'
 import { mcpPerformanceMonitor } from '@/lib/mcp/performance-monitor'
+import { simpleMCPClient } from './mcp/SimpleMCPClient'
 
 // 简化的模块加载，避免在Electron中使用动态导入
 let aiIntegrationAvailable = false
@@ -46,8 +47,14 @@ export class MCPService {
     if (this.isElectronEnvironment) {
       this.api = (window as any).electronAPI.mcp
       console.log('✅ MCP服务：Electron环境检测成功')
+      console.log('✅ 可用的MCP API方法:', Object.keys(this.api))
     } else {
       console.warn('⚠️ MCP服务：不在Electron环境中，MCP功能将不可用')
+      console.log('🔍 调试信息:', {
+        hasWindow: typeof window !== 'undefined',
+        hasElectronAPI: !!(window as any)?.electronAPI,
+        hasMcpAPI: !!(window as any)?.electronAPI?.mcp
+      })
     }
   }
 
@@ -432,47 +439,12 @@ export class MCPService {
   private getStaticPresetServers(): MCPServerConfig[] {
     return [
       {
-        id: 'obsidian',
-        name: 'Obsidian',
-        description: 'Obsidian 笔记管理工具 - 创建、读取、搜索和管理 Markdown 笔记',
-        command: 'uvx',
-        args: ['obsidian-mcp'],
-        env: {
-          OBSIDIAN_VAULT_PATH: '/Users/lvyun/Nextcloud2/奈山堂语2'
-        },
-        autoStart: false
-      },
-      {
         id: 'duckduckgo-search',
         name: 'DuckDuckGo Search',
-        description: '网络搜索工具 - 使用DuckDuckGo搜索引擎，包含搜索和网页内容获取功能',
+        description: 'DuckDuckGo网络搜索和内容获取工具',
         command: 'uvx',
         args: ['duckduckgo-mcp-server'],
-        autoStart: false
-      },
-      {
-        id: 'memory',
-        name: 'Memory',
-        description: '记忆存储和检索工具 - 保存和查找重要信息',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-memory'],
-        autoStart: false
-      },
-      {
-        id: 'filesystem',
-        name: 'File System',
-        description: '文件系统操作工具 - 读取、写入、列出文件和目录',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-filesystem', '/Users/lvyun'],
-        autoStart: false
-      },
-      {
-        id: 'sequential-thinking',
-        name: 'Sequential Thinking',
-        description: '结构化思维和问题解决工具',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-sequential-thinking'],
-        autoStart: false
+        autoStart: true
       }
     ]
   }

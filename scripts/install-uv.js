@@ -36,10 +36,10 @@ if (fs.existsSync(uvPath) && fs.existsSync(uvxPath)) {
 async function downloadUv() {
   const platform = process.platform;
   const arch = process.arch;
-  
+
   let downloadUrl;
   let fileName;
-  
+
   // 确定下载URL
   if (platform === 'darwin') {
     if (arch === 'arm64') {
@@ -61,12 +61,12 @@ async function downloadUv() {
   } else {
     throw new Error(`不支持的平台: ${platform}`);
   }
-  
+
   console.log(`📥 下载 uv for ${platform}-${arch}...`);
   console.log(`URL: ${downloadUrl}`);
-  
+
   const downloadPath = path.join(binDir, fileName);
-  
+
   // 使用 curl 或 wget 下载
   try {
     if (platform === 'win32') {
@@ -80,15 +80,15 @@ async function downloadUv() {
     console.error('❌ 下载失败:', error.message);
     process.exit(1);
   }
-  
+
   console.log('📦 解压文件...');
-  
+
   // 解压文件
   try {
     if (platform === 'win32') {
       // Windows 使用 PowerShell 解压
       execSync(`powershell -Command "Expand-Archive -Path '${downloadPath}' -DestinationPath '${binDir}' -Force"`, { stdio: 'inherit' });
-      
+
       // 移动文件到正确位置
       const extractedDir = path.join(binDir, 'uv-x86_64-pc-windows-msvc');
       if (fs.existsSync(extractedDir)) {
@@ -100,33 +100,33 @@ async function downloadUv() {
     } else {
       // macOS/Linux 使用 tar
       execSync(`tar -xzf "${downloadPath}" -C "${binDir}"`, { stdio: 'inherit' });
-      
+
       // 查找解压后的目录
       const files = fs.readdirSync(binDir);
       const extractedDir = files.find(f => f.startsWith('uv-') && fs.statSync(path.join(binDir, f)).isDirectory());
-      
+
       if (extractedDir) {
         const srcDir = path.join(binDir, extractedDir);
         fs.copyFileSync(path.join(srcDir, 'uv'), uvPath);
         fs.copyFileSync(path.join(srcDir, 'uvx'), uvxPath);
-        
+
         // 设置执行权限
         fs.chmodSync(uvPath, '755');
         fs.chmodSync(uvxPath, '755');
-        
+
         // 清理
         fs.rmSync(srcDir, { recursive: true, force: true });
       }
     }
-    
+
     // 清理下载文件
     fs.unlinkSync(downloadPath);
-    
+
   } catch (error) {
     console.error('❌ 解压失败:', error.message);
     process.exit(1);
   }
-  
+
   // 验证安装
   try {
     const version = execSync(`"${uvPath}" --version`, { encoding: 'utf8' }).trim();

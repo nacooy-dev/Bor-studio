@@ -80,7 +80,7 @@ export class ToolResultProcessingNode extends FlowNode {
 
     try {
       const executionResult = input.data as AggregatedExecutionResult
-      const originalInput = input.data.originalInput || ''
+      const originalInput = input.data?.originalInput || input.data || ''
       const context = input.context
 
       console.log(`🔍 开始处理 ${executionResult.results.length} 个工具执行结果`)

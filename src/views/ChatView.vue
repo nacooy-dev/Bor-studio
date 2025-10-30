@@ -102,6 +102,8 @@ import { DialogueRouter } from '@/services/dialogue/DialogueRouter'
 import { MessageFactory } from '@/utils/messageFactory'
 import { mcpService } from '@/services/mcp'
 import { flowIntegration } from '@/lib/flow-engine/FlowIntegration'
+import { llmMCPHandler } from '@/services/mcp/LLMBasedMCPHandler'
+import { hybridIntentEngine } from '@/services/intent/HybridIntentEngine'
 import ChatMessage from '@/components/ChatMessage.vue'
 import ChatInput from '@/components/ChatInput.vue'
 
@@ -111,11 +113,16 @@ const $router = useRouter()
 const chatStore = useChatStore()
 // 使用全局 LLM 管理器实例
 const dialogueRouter = new DialogueRouter()
+// 初始化LLM-MCP处理器
+onMounted(async () => {
+  await llmMCPHandler.initialize()
+})
 const messagesContainer = ref<HTMLElement>()
 const inputText = ref('')
 const isLoading = ref(false)
 const streamingMessageId = ref<string | null>(null)
 const abortController = ref<AbortController | null>(null)
+const isProcessingNote = ref(false)
 const systemStatus = ref({
   ollama: false,
   currentModel: '',
@@ -210,6 +217,25 @@ const handleSend = async (content: string, files?: File[]) => {
   scrollToBottom()
   
   try {
+    // 🔧 优先检查系统命令
+    const isSystemCommand = await handleSystemCommands(messageContent)
+    if (isSystemCommand) {
+      isLoading.value = false
+      return
+    }
+    
+    // 🚀 新架构：让LLM决定是否需要调用MCP工具
+    // 不再在前端做路由判断，而是将工具信息提供给LLM
+    console.log('💭 将用户输入发送给LLM，由LLM决定是否需要调用MCP工具')
+    
+
+    
+    // 如果正在处理笔记，不执行AI响应
+    if (isProcessingNote.value) {
+      console.log('🛑 正在处理笔记，跳过AI响应')
+      return
+    }
+    
     // 调用真实的 AI 响应处理
     await handleAIResponse(messageContent)
   } catch (error) {
@@ -251,38 +277,30 @@ const handleAIResponse = async (userInput: string) => {
       .slice(-10)
       .filter(msg => msg.role !== 'system')
 
-    console.log('🚀 尝试使用流程引擎处理用户输入...')
+    console.log('🚀 使用混合意图识别引擎处理用户输入...')
 
-    // 首先尝试使用流程引擎
-    try {
-      const flowResponse = await flowIntegration.processUserInput(
-        userInput,
-        conversationHistory,
-        {
-          sessionId: 'chat-session',
-          userId: 'user'
-        }
-      )
+    // 🧠 混合意图识别：快思维 + 慢思维
+    const intentResult = await hybridIntentEngine.recognizeIntent(userInput)
+    console.log('🎯 意图识别结果:', intentResult)
 
-      if (flowResponse.success) {
-        console.log('✅ 流程引擎处理成功')
-        
-        // 创建助手消息
-        const assistantMessage = MessageFactory.createAssistantMessage(flowResponse.content)
-        messages.value.push(assistantMessage)
-
-        // 显示建议（如果有）
-        if (flowResponse.suggestions.length > 0) {
-          console.log('💡 建议:', flowResponse.suggestions)
-          // 可以在UI中显示建议
-        }
-
+    if (intentResult.tool && intentResult.confidence > 0.6) {
+      console.log(`🔧 ${intentResult.method === 'fast' ? '快思维' : '慢思维'}识别成功，使用工具: ${intentResult.tool}`)
+      
+      // 🚀 处理5个核心工具（快思维）
+      if (intentResult.method === 'fast') {
+        await handleCoreToolCall(intentResult.tool, intentResult.parameters, userInput)
         return
-      } else {
-        console.log('⚠️ 流程引擎处理失败，回退到传统处理')
       }
-    } catch (flowError) {
-      console.warn('⚠️ 流程引擎执行出错，回退到传统处理:', flowError)
+      
+      // 🤔 处理其他MCP工具（慢思维）
+      await handleDirectToolCall(userInput, intentResult.tool, intentResult.parameters)
+      return
+    }
+
+    // 🧠 需要LLM深度分析
+    if (intentResult.intent === 'llm_analysis_required') {
+      console.log('🤔 启动LLM深度分析模式')
+      // 继续到LLM处理流程
     }
 
     // 回退到原有的对话路由处理
@@ -318,6 +336,428 @@ const handleAIResponse = async (userInput: string) => {
     
     // 最终回退到传统LLM处理
     await handleLLMResponse(userInput)
+  }
+}
+
+// 🚀 处理5个核心工具（快思维）
+const handleCoreToolCall = async (toolName: string, parameters: Record<string, any>, userInput: string) => {
+  console.log(`⚡ 快思维处理核心工具: ${toolName}`, parameters)
+  
+  try {
+    switch (toolName) {
+      case 'navigate_to_config':
+        // 导航到配置页面
+        console.log('🔧 导航到配置页面')
+        await $router.push('/config')
+        const configMessage = MessageFactory.createAssistantMessage('✅ 已打开Bor配置页面')
+        messages.value.push(configMessage)
+        break
+
+      case 'get_current_time':
+        // 时间同步
+        const now = new Date()
+        const timeStr = now.toLocaleString('zh-CN', { 
+          year: 'numeric', 
+          month: '2-digit', 
+          day: '2-digit', 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          second: '2-digit',
+          weekday: 'long'
+        })
+        const timeMessage = MessageFactory.createAssistantMessage(
+          `🕐 **当前时间**\n\n${timeStr}\n\n系统时间已与对话时间同步。`
+        )
+        messages.value.push(timeMessage)
+        break
+
+      case 'search':
+        // DuckDuckGo搜索 - 使用现有的MCP调用
+        await handleDirectToolCall(userInput, 'search', parameters)
+        break
+
+      case 'obsidian_operation':
+        // Obsidian操作 - 根据操作类型选择具体工具并清理参数
+        const obsidianTool = mapObsidianOperation(parameters.operation)
+        
+        // 🔧 清理参数，移除operation字段，只保留工具需要的参数
+        const cleanedParams = {
+          path: parameters.path,
+          content: parameters.content
+        }
+        
+        console.log(`📝 Obsidian操作: ${parameters.operation} -> ${obsidianTool}`, cleanedParams)
+        await handleDirectToolCall(userInput, obsidianTool, cleanedParams)
+        break
+
+      case 'advanced_calculator':
+        // 高级计算器 - 查找计算相关的MCP工具
+        const calcTool = llmMCPHandler.getAvailableTools().find(t => 
+          t.name.includes('calc') || t.name.includes('math') || t.name.includes('compute')
+        )
+        if (calcTool) {
+          await handleDirectToolCall(userInput, calcTool.name, parameters)
+        } else {
+          // 简单的内置计算（仅支持基本运算）
+          const safeCalc = safeCalculate(parameters.expression)
+          const calcMessage = MessageFactory.createAssistantMessage(
+            safeCalc.success 
+              ? `🧮 **计算结果**\n\n${parameters.expression} = ${safeCalc.result}`
+              : `❌ **计算错误**\n\n${safeCalc.error}\n\n建议安装高级计算器MCP工具以支持更复杂的计算。`
+          )
+          messages.value.push(calcMessage)
+        }
+        break
+
+      case 'ultrarag_search':
+        // UltraRAG知识库搜索 - 如果有对应的MCP工具
+        const ragTool = llmMCPHandler.getAvailableTools().find(t => 
+          t.name.includes('rag') || t.name.includes('knowledge') || t.server?.includes('ultrarag')
+        )
+        if (ragTool) {
+          await handleDirectToolCall(userInput, ragTool.name, parameters)
+        } else {
+          const noRagMessage = MessageFactory.createAssistantMessage(
+            '❌ UltraRAG知识库工具未配置，请检查MCP配置。'
+          )
+          messages.value.push(noRagMessage)
+        }
+        break
+
+      default:
+        console.warn(`未知的核心工具: ${toolName}`)
+        await handleDirectToolCall(userInput, toolName, parameters)
+    }
+  } catch (error) {
+    console.error('核心工具处理失败:', error)
+    const errorMessage = MessageFactory.createAssistantMessage(
+      `❌ 工具执行失败: ${error instanceof Error ? error.message : '未知错误'}`
+    )
+    messages.value.push(errorMessage)
+  } finally {
+    isLoading.value = false
+    await nextTick()
+    scrollToBottom()
+  }
+}
+
+// 映射Obsidian操作到具体工具
+const mapObsidianOperation = (operation: string): string => {
+  const toolMap: Record<string, string> = {
+    'create': 'create_note_tool',
+    'edit': 'update_note_tool',
+    'open': 'read_note_tool',
+    'delete': 'delete_note_tool',
+    'list': 'list_notes_tool'
+  }
+  return toolMap[operation] || 'create_note_tool'
+}
+
+// 安全的计算函数（避免使用eval）
+const safeCalculate = (expression: string): { success: boolean; result?: number; error?: string } => {
+  try {
+    // 只允许基本的数学运算
+    const sanitized = expression.replace(/[^0-9+\-*/().\s]/g, '')
+    if (sanitized !== expression) {
+      return { success: false, error: '只支持基本数学运算符 (+, -, *, /, (), .)' }
+    }
+    
+    // 使用Function构造函数代替eval（稍微安全一些）
+    const result = new Function('return ' + sanitized)()
+    
+    if (typeof result !== 'number' || !isFinite(result)) {
+      return { success: false, error: '计算结果无效' }
+    }
+    
+    return { success: true, result }
+  } catch (error) {
+    return { success: false, error: '计算表达式格式错误' }
+  }
+}
+
+// ⚡ 处理直接工具调用 - 高效路径
+const handleDirectToolCall = async (userInput: string, toolName: string, preExtractedParams?: Record<string, any>) => {
+  console.log(`🚀 直接执行工具调用: ${toolName}`)
+  
+  // 添加处理中消息
+  const processingMessage = MessageFactory.createAssistantMessage(`🔧 正在使用 ${toolName} 处理您的请求...`)
+  messages.value.push(processingMessage)
+  
+  try {
+    // 使用预提取的参数或智能提取参数
+    const parameters = preExtractedParams || extractToolParameters(userInput, toolName)
+    console.log('📋 使用的参数:', parameters)
+    
+    // 执行工具调用
+    const result = await llmMCPHandler.executeToolCall(toolName, parameters)
+    
+    // 删除处理中消息
+    const processingIndex = messages.value.findIndex(msg => msg.id === processingMessage.id)
+    if (processingIndex !== -1) {
+      messages.value.splice(processingIndex, 1)
+    }
+    
+    if (result.success) {
+      console.log('✅ 工具调用成功')
+      
+      // 格式化结果
+      const formattedResult = formatToolResult(toolName, result.data, userInput)
+      const resultMessage = MessageFactory.createAssistantMessage(formattedResult)
+      messages.value.push(resultMessage)
+    } else {
+      console.error('❌ 工具调用失败:', result.error)
+      
+      const errorMessage = MessageFactory.createAssistantMessage(
+        `❌ **工具执行失败**\n\n**错误**: ${result.error}\n\n让我尝试用其他方式帮助您...`
+      )
+      messages.value.push(errorMessage)
+      
+      // 回退到LLM处理
+      await handleLLMResponse(userInput)
+    }
+    
+  } catch (error) {
+    console.error('❌ 直接工具调用异常:', error)
+    
+    // 删除处理中消息
+    const processingIndex = messages.value.findIndex(msg => msg.id === processingMessage.id)
+    if (processingIndex !== -1) {
+      messages.value.splice(processingIndex, 1)
+    }
+    
+    // 回退到LLM处理
+    await handleLLMResponse(userInput)
+  } finally {
+    isLoading.value = false
+    await nextTick()
+    scrollToBottom()
+  }
+}
+
+// 智能参数提取 - 修复参数匹配
+const extractToolParameters = (userInput: string, toolName: string): Record<string, any> => {
+  const lowerInput = userInput.toLowerCase()
+  console.log(`🔧 为工具 ${toolName} 提取参数`)
+  
+  // 🔥 根据实际工具的参数要求来构建参数
+  const tool = llmMCPHandler.getAvailableTools().find(t => t.name === toolName)
+  if (tool?.inputSchema?.properties) {
+    const requiredParams = Object.keys(tool.inputSchema.properties)
+    console.log(`📋 工具 ${toolName} 需要的参数:`, requiredParams)
+    
+    const params: Record<string, any> = {}
+    
+    // 根据工具的实际参数要求来构建
+    if (requiredParams.includes('query')) {
+      // 提取搜索查询
+      let query = userInput
+      const searchKeywords = ['搜索', '查找', 'search', 'find', '搜', '查']
+      
+      for (const keyword of searchKeywords) {
+        const regex = new RegExp(`^${keyword}\\s*[:：]?\\s*`, 'i')
+        query = query.replace(regex, '').trim()
+      }
+      
+      params.query = query || userInput
+    }
+    
+    // 其他常见参数
+    if (requiredParams.includes('max_results')) {
+      params.max_results = 5
+    }
+    
+    if (requiredParams.includes('days_ago')) {
+      params.days_ago = 7
+    }
+    
+    console.log(`✅ 构建的参数:`, params)
+    return params
+  }
+  
+  // 回退到通用参数
+  if (toolName.includes('search')) {
+    let query = userInput
+    const searchKeywords = ['搜索', '查找', 'search', 'find', '搜', '查']
+    
+    for (const keyword of searchKeywords) {
+      const regex = new RegExp(`^${keyword}\\s*[:：]?\\s*`, 'i')
+      query = query.replace(regex, '').trim()
+    }
+    
+    return { query: query || userInput }
+  }
+  
+  if (toolName.includes('note')) {
+    // 笔记操作参数
+    if (lowerInput.includes('创建') || lowerInput.includes('新建')) {
+      const content = userInput.replace(/(创建|新建).*?笔记\s*[:：]?\s*/i, '').trim()
+      return {
+        path: `笔记_${Date.now()}.md`,
+        content: content || '新建笔记内容'
+      }
+    }
+    
+    if (lowerInput.includes('搜索') || lowerInput.includes('查找')) {
+      const query = userInput.replace(/(搜索|查找).*?笔记\s*[:：]?\s*/i, '').trim()
+      return { query: query || userInput }
+    }
+  }
+  
+  // 默认参数
+  return { input: userInput }
+}
+
+// 格式化工具结果
+const formatToolResult = (toolName: string, data: any, originalInput: string): string => {
+  if (toolName.includes('search')) {
+    return formatSearchResult(data)
+  }
+  
+  if (toolName.includes('note') || toolName.includes('obsidian')) {
+    return formatObsidianResult(toolName, data, originalInput)
+  }
+  
+  return `🔧 **工具执行结果**\n\n${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}`
+}
+
+// 格式化搜索结果
+const formatSearchResult = (result: any): string => {
+  if (typeof result === 'string') {
+    // DuckDuckGo MCP服务器返回格式化的字符串
+    return `🔍 **搜索结果**\n\n${result}`
+  }
+  
+  if (Array.isArray(result)) {
+    let formatted = `🔍 **搜索结果**\n\n`
+    
+    result.forEach((item: any, index: number) => {
+      formatted += `**${index + 1}. [${item.title || '无标题'}](${item.link || '#'})**\n`
+      if (item.snippet) {
+        formatted += `${item.snippet}\n`
+      }
+      formatted += `\n`
+    })
+
+    return formatted.trim()
+  }
+
+  return `🔍 **搜索结果**\n\n${JSON.stringify(result, null, 2)}`
+}
+
+// 专门格式化 Obsidian 结果
+const formatObsidianResult = (toolName: string, data: any, originalInput: string): string => {
+  try {
+    // 尝试解析 JSON 数据
+    let parsedData = data
+    if (typeof data === 'string') {
+      try {
+        parsedData = JSON.parse(data)
+      } catch {
+        // 如果不是 JSON，直接使用字符串
+        parsedData = { message: data }
+      }
+    }
+
+    // 根据工具类型格式化结果
+    if (toolName.includes('create')) {
+      return formatCreateNoteResult(parsedData, originalInput)
+    } else if (toolName.includes('read')) {
+      return formatReadNoteResult(parsedData)
+    } else if (toolName.includes('list')) {
+      return formatListNotesResult(parsedData)
+    } else if (toolName.includes('search')) {
+      return formatSearchNotesResult(parsedData)
+    } else if (toolName.includes('update')) {
+      return formatUpdateNoteResult(parsedData)
+    } else if (toolName.includes('delete')) {
+      return formatDeleteNoteResult(parsedData)
+    }
+
+    // 默认格式化
+    return `📝 **笔记操作完成**\n\n${JSON.stringify(parsedData, null, 2)}`
+  } catch (error) {
+    return `📝 **笔记操作完成**\n\n${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}`
+  }
+}
+
+// 格式化创建笔记结果
+const formatCreateNoteResult = (data: any, originalInput: string): string => {
+  const fileName = data.path || data.name || '未知文件'
+  const success = data.success !== false && !data.error
+  
+  if (success) {
+    return `✅ **笔记创建成功！**\n\n📄 **文件名**: ${fileName}\n📝 **内容**: ${originalInput.replace(/^(创建|新建|写)\\s*(笔记|文档|日记)\\s*/i, '').trim() || '已创建'}\n\n💡 您的笔记已保存到 Obsidian vault 中。`
+  } else {
+    return `❌ **笔记创建失败**\n\n**错误**: ${data.error || data.message || '未知错误'}`
+  }
+}
+
+// 格式化读取笔记结果
+const formatReadNoteResult = (data: any): string => {
+  const fileName = data.path || data.name || '笔记'
+  const content = data.content || data.text || ''
+  
+  if (content) {
+    return `📖 **${fileName}**\n\n${content.substring(0, 500)}${content.length > 500 ? '\n\n...(内容已截断)' : ''}`
+  } else {
+    return `📖 **${fileName}**\n\n📄 笔记内容为空或无法读取。`
+  }
+}
+
+// 格式化列表笔记结果
+const formatListNotesResult = (data: any): string => {
+  const notes = data.notes || data.files || data.list || []
+  
+  if (Array.isArray(notes) && notes.length > 0) {
+    const noteList = notes.slice(0, 10).map((note, index) => {
+      const name = typeof note === 'string' ? note : (note.name || note.path || note.title)
+      return `${index + 1}. ${name}`
+    }).join('\n')
+    
+    return `📋 **笔记列表** (共 ${notes.length} 个)\n\n${noteList}${notes.length > 10 ? '\n\n...(仅显示前10个)' : ''}`
+  } else {
+    return `📋 **笔记列表**\n\n📄 暂无笔记或无法获取列表。`
+  }
+}
+
+// 格式化搜索笔记结果
+const formatSearchNotesResult = (data: any): string => {
+  const results = data.results || data.matches || data.notes || []
+  
+  if (Array.isArray(results) && results.length > 0) {
+    const searchResults = results.slice(0, 5).map((result, index) => {
+      const name = typeof result === 'string' ? result : (result.name || result.path || result.title)
+      const snippet = result.snippet || result.content || ''
+      return `${index + 1}. **${name}**${snippet ? `\n   ${snippet.substring(0, 100)}...` : ''}`
+    }).join('\n\n')
+    
+    return `🔍 **搜索结果** (找到 ${results.length} 个)\n\n${searchResults}${results.length > 5 ? '\n\n...(仅显示前5个)' : ''}`
+  } else {
+    return `🔍 **搜索结果**\n\n📄 未找到匹配的笔记。`
+  }
+}
+
+// 格式化更新笔记结果
+const formatUpdateNoteResult = (data: any): string => {
+  const fileName = data.path || data.name || '笔记'
+  const success = data.success !== false && !data.error
+  
+  if (success) {
+    return `✅ **笔记更新成功！**\n\n📄 **文件名**: ${fileName}\n💡 笔记内容已更新。`
+  } else {
+    return `❌ **笔记更新失败**\n\n**错误**: ${data.error || data.message || '未知错误'}`
+  }
+}
+
+// 格式化删除笔记结果
+const formatDeleteNoteResult = (data: any): string => {
+  const fileName = data.path || data.name || '笔记'
+  const success = data.success !== false && !data.error
+  
+  if (success) {
+    return `✅ **笔记删除成功！**\n\n📄 **文件名**: ${fileName}\n💡 笔记已从 vault 中删除。`
+  } else {
+    return `❌ **笔记删除失败**\n\n**错误**: ${data.error || data.message || '未知错误'}`
   }
 }
 
@@ -366,15 +806,47 @@ const handleLLMResponse = async (userInput: string, dialogueResponse?: any) => {
       messageCount: conversationHistory.length
     })
 
-    // 构建包含MCP工具信息的消息历史
+    // 🚀 构建包含MCP工具信息的消息历史
     let enhancedHistory = [...conversationHistory]
     
-    // 如果有MCP工具可用，添加系统提示
+    // 获取可用的MCP工具并添加到系统提示中
+    const availableTools = llmMCPHandler.getAvailableTools()
+    let systemPrompt = ''
+    
+    if (availableTools.length > 0) {
+      const toolsInfo = llmMCPHandler.formatToolsForLLM()
+      systemPrompt = `你是一个智能助手，可以使用以下MCP工具来帮助用户：
+
+${toolsInfo}
+
+🔧 **工具调用格式**：
+当你需要调用工具时，请使用以下格式（注意：JSON必须是单行，不能包含换行符）：
+\`\`\`tool-call
+{"tool": "工具名称", "parameters": {"参数名": "参数值"}}
+\`\`\`
+
+例如：
+- 搜索网页：\`\`\`tool-call
+{"tool": "search", "parameters": {"query": "成都大运会"}}
+\`\`\`
+- 创建笔记：\`\`\`tool-call
+{"tool": "create_note_tool", "parameters": {"path": "日记.md", "content": "今天的日记内容"}}
+\`\`\`
+
+⚠️ 重要：JSON必须是单行格式，不要包含换行符或特殊字符。`
+    }
+    
+    // 如果有对话路由的系统提示，合并
     if (dialogueResponse?.metadata?.systemPrompt) {
+      systemPrompt = systemPrompt ? `${systemPrompt}\n\n${dialogueResponse.metadata.systemPrompt}` : dialogueResponse.metadata.systemPrompt
+    }
+    
+    // 添加系统提示到消息历史
+    if (systemPrompt) {
       enhancedHistory.unshift({
         id: 'mcp-system-prompt',
         role: 'system',
-        content: dialogueResponse.metadata.systemPrompt,
+        content: systemPrompt,
         timestamp: Date.now()
       })
     }
@@ -401,80 +873,78 @@ const handleLLMResponse = async (userInput: string, dialogueResponse?: any) => {
       messages.value[messageIndex].content = response
     }
 
-    // 检查LLM响应中是否包含工具调用
+    // 🔍 检查LLM响应中是否包含工具调用
     const llmResponseContent = messages.value[messageIndex]?.content || response || ''
     console.log('🔍 检查LLM响应中的工具调用:', llmResponseContent.substring(0, 200) + '...')
     
-    const { mcpLLMIntegration } = await import('@/services/mcp/MCPLLMIntegration')
-    const toolCallRequest = mcpLLMIntegration.detectToolCall(llmResponseContent)
+    // 使用新的LLM-MCP处理器检测工具调用 - 简化JSON解析
+    const toolCallMatch = llmResponseContent.match(/```tool-call\s*\n([\s\S]*?)\n```/)
     
-    if (toolCallRequest) {
-      console.log('🔧 检测到MCP工具调用请求:', toolCallRequest)
-
-      // 执行工具调用
-      const toolResult = await mcpLLMIntegration.executeToolCall(toolCallRequest)
-      
-      if (toolResult.success) {
-        console.log('✅ MCP工具调用成功:', toolResult.result)
+    if (toolCallMatch) {
+      try {
+        const jsonStr = toolCallMatch[1].trim()
+        console.log('🔧 原始JSON:', jsonStr)
         
-        // 自动让LLM总结工具结果
-        const summaryPrompt = `请根据以下工具执行结果，生成一个用户友好的总结回复：
+        const toolCallData = JSON.parse(jsonStr)
+        console.log('🔧 检测到MCP工具调用请求:', toolCallData)
 
-工具名称：${toolResult.toolName}
-用户原始查询：${userInput}
-工具执行结果：
-${JSON.stringify(toolResult.result, null, 2)}
+        // 添加工具执行提示
+        const toolMessage = MessageFactory.createAssistantMessage(`🔧 正在执行工具: ${toolCallData.tool}...`)
+        messages.value.push(toolMessage)
 
-请将结果整理成易读的格式：
-1. 如果是搜索结果，请提取关键信息并用表格展示，但要注意：
-   - 表格列数不要超过4列
-   - URL链接要简化显示（只显示域名或简短描述）
-   - 内容要简洁，避免过长的文本
-2. 如果是天气信息，请整理成结构化的天气报告
-3. 如果是新闻信息，请总结要点
-4. 使用中文回复，语言自然流畅。`
-
-        // 调用LLM生成总结（不使用流式输出，等待完整结果）
-        console.log('🔄 开始生成工具结果总结...')
-        const summaryResponse = await llmManager.chat([
-          { role: 'user', content: summaryPrompt }
-        ], {
-          temperature: 0.3,
-          maxTokens: 2000
-          // 注意：这里不使用onStream，确保获得完整响应
-        })
+        // 执行工具调用
+        const toolResult = await llmMCPHandler.executeToolCall(toolCallData.tool, toolCallData.parameters)
         
-        console.log('📝 总结生成完成:', summaryResponse?.substring(0, 100) + '...')
-        
-        if (summaryResponse) {
-          // 添加LLM总结的结果到对话中
-          const summaryMessage = MessageFactory.createAssistantMessage(summaryResponse)
-          messages.value.push(summaryMessage)
-        } else {
-          // 如果总结失败，显示原始结果
-          const toolResultMessage = `工具 ${toolResult.toolName} 执行结果：${JSON.stringify(toolResult.result)}`
-          const resultMessage = MessageFactory.createAssistantMessage(toolResultMessage)
-          messages.value.push(resultMessage)
+        // 删除工具执行提示
+        const toolMessageIndex = messages.value.findIndex(m => m.id === toolMessage.id)
+        if (toolMessageIndex !== -1) {
+          messages.value.splice(toolMessageIndex, 1)
         }
-      } else {
-        console.error('❌ MCP工具调用失败:', toolResult.error)
         
-        // 添加错误信息到对话中
-        const errorMessage = MessageFactory.createAssistantMessage(`工具调用失败：${toolResult.error}`)
-        messages.value.push(errorMessage)
+        if (toolResult.success) {
+          console.log('✅ MCP工具调用成功:', toolResult.data)
+          
+          // 将工具结果添加为新消息
+          const resultMessage = MessageFactory.createAssistantMessage(
+            `🔍 **工具执行结果**\n\n${typeof toolResult.data === 'string' ? toolResult.data : JSON.stringify(toolResult.data, null, 2)}`
+          )
+          messages.value.push(resultMessage)
+        } else {
+          console.error('❌ MCP工具调用失败:', toolResult.error)
+          
+          // 添加错误消息
+          const errorMessage = MessageFactory.createAssistantMessage(
+            `❌ **工具执行失败**\n\n**错误**: ${toolResult.error}`
+          )
+          messages.value.push(errorMessage)
+        }
+      } catch (parseError) {
+        console.error('❌ 工具调用解析失败:', parseError)
+        
+        // 添加解析错误消息
+        const parseErrorMessage = MessageFactory.createAssistantMessage(
+          `❌ **工具调用格式错误**\n\n无法解析工具调用请求，请检查格式是否正确。`
+        )
+        messages.value.push(parseErrorMessage)
       }
-    } else {
-      console.log('ℹ️ LLM响应中未检测到工具调用。')
     }
 
   } catch (error) {
     console.error('LLM 调用失败:', error)
+    
+    // 更新消息显示错误
     const messageIndex = messages.value.findIndex(m => m.id === assistantMessage.id)
     if (messageIndex !== -1) {
-      messages.value[messageIndex].content = `❌ 对话失败：${(error as Error).message || '未知错误'}\n\n请检查 Ollama 服务状态或尝试切换模型。`
+      messages.value[messageIndex].content = `❌ 抱歉，处理您的请求时出现了错误：${error instanceof Error ? error.message : '未知错误'}`
     }
   } finally {
+    // 清理流式消息ID
     streamingMessageId.value = null
+    isLoading.value = false
+    
+    // 滚动到底部
+    await nextTick()
+    scrollToBottom()
   }
 }
 
@@ -483,11 +953,8 @@ const checkLLMResponseForToolCalls = async (llmResponse: string) => {
   try {
     console.log('🔍 检查LLM响应中的工具调用:', llmResponse.substring(0, 200) + '...')
     
-    // 导入MCP集成服务
-    const { mcpLLMIntegration } = await import('@/services/mcp/MCPLLMIntegration')
-    
     // 检测工具调用请求
-    const toolCallRequest = mcpLLMIntegration.detectToolCall(llmResponse)
+    const toolCallRequest = mcpManager.detectToolCall(llmResponse)
     if (!toolCallRequest) {
       console.log('ℹ️ LLM响应中未检测到工具调用')
       return
@@ -496,10 +963,10 @@ const checkLLMResponseForToolCalls = async (llmResponse: string) => {
     console.log('🔧 在LLM响应中检测到工具调用请求:', toolCallRequest)
 
     // 执行工具调用
-    const toolResult = await mcpLLMIntegration.executeToolCall(toolCallRequest)
+    const toolResult = await mcpManager.executeToolCall(toolCallRequest)
     
     // 创建工具执行结果消息
-    const toolResultMessage = mcpLLMIntegration.formatToolResult(toolResult)
+    const toolResultMessage = mcpManager.formatToolResult(toolResult)
     
     // 添加工具执行结果到对话中
     const resultMessage = MessageFactory.createAssistantMessage(toolResultMessage)
@@ -649,19 +1116,45 @@ const executeSystemCommand = async (command: string, args: any[] = []) => {
 const handleSystemCommands = async (userInput: string): Promise<boolean> => {
   const input = userInput.toLowerCase()
 
-  // 配置 LLM
-  if (input.includes('配置') && input.includes('llm')) {
-    const configMessage = MessageFactory.createConfigMessage('llm-settings', 'open')
+  // 配置 LLM - 跳转到配置页面 (支持多种表达方式)
+  if (input.includes('配置') && (input.includes('llm') || input.includes('模型'))) {
+    const configMessage = MessageFactory.createAssistantMessage(
+      '🔧 正在打开配置页面...\n\n您可以在配置页面中设置LLM模型提供商和相关参数。'
+    )
     messages.value.push(configMessage)
     
+    // 跳转到配置页面
     setTimeout(() => {
-      if ((window as any).electronAPI) {
-        (window as any).electronAPI.openConfigWindow('llm-settings')
-      } else {
-        // Web 环境下的处理
-        alert('配置功能需要在桌面应用中使用')
-      }
-    }, 1000)
+      $router.push('/config')
+    }, 500)
+    return true
+  }
+
+  // 配置 MCP - 跳转到配置页面
+  if (input.includes('配置') && input.includes('mcp')) {
+    const configMessage = MessageFactory.createAssistantMessage(
+      '🔧 正在打开配置页面...\n\n您可以在配置页面中管理MCP服务器和工具集成。'
+    )
+    messages.value.push(configMessage)
+    
+    // 跳转到配置页面
+    setTimeout(() => {
+      $router.push('/config')
+    }, 500)
+    return true
+  }
+
+  // 通用配置 - 跳转到配置页面
+  if ((input.includes('打开') || input.includes('进入')) && input.includes('配置')) {
+    const configMessage = MessageFactory.createAssistantMessage(
+      '🔧 正在打开配置页面...\n\n您可以在这里管理所有系统设置。'
+    )
+    messages.value.push(configMessage)
+    
+    // 跳转到配置页面
+    setTimeout(() => {
+      $router.push('/config')
+    }, 500)
     return true
   }
 
@@ -812,6 +1305,39 @@ ollama pull deepseek-coder:6.7b
   }
 
 
+
+  // 调试命令：显示所有Obsidian工具
+  if (input.includes('显示') && input.includes('obsidian') && input.includes('工具')) {
+    try {
+      const toolsResult = await window.electronAPI.mcp.getTools()
+      let toolsList = '🛠️ **Obsidian MCP 工具列表**\n\n'
+      
+      if (toolsResult.success && toolsResult.data) {
+        const obsidianTools = toolsResult.data.filter((tool: any) => 
+          tool.server === 'obsidian' || 
+          tool.name.includes('obsidian') ||
+          tool.description?.toLowerCase().includes('obsidian')
+        )
+        
+        toolsList += `找到 ${obsidianTools.length} 个 Obsidian 工具：\n\n`
+        
+        obsidianTools.forEach((tool: any, index: number) => {
+          toolsList += `${index + 1}. **${tool.name}**\n`
+          toolsList += `   - 描述: ${tool.description || '无描述'}\n`
+          toolsList += `   - 服务器: ${tool.server}\n\n`
+        })
+      } else {
+        toolsList += '❌ 无法获取工具列表\n'
+      }
+      
+      const toolsMessage = MessageFactory.createAssistantMessage(toolsList)
+      messages.value.push(toolsMessage)
+    } catch (error) {
+      const errorMessage = MessageFactory.createAssistantMessage(`❌ 获取Obsidian工具失败: ${error}`)
+      messages.value.push(errorMessage)
+    }
+    return true
+  }
 
   return false
 }

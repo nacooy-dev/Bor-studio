@@ -67,14 +67,14 @@
             </div>
           </div>
           
-          <p v-if="server.config.description" class="server-description">
+          <p v-if="server.config && server.config.description" class="server-description">
             {{ server.config.description }}
           </p>
           
           <div class="server-details">
             <span class="detail-item">
               <Terminal class="w-4 h-4" />
-              {{ server.config.command }} {{ server.config.args.join(' ') }}
+              {{ server.config?.command || 'unknown' }} {{ (server.config?.args || []).join(' ') }}
             </span>
             <span v-if="server.pid" class="detail-item">
               <Hash class="w-4 h-4" />
@@ -169,7 +169,7 @@
           >
             <div class="tool-info">
               <h4>{{ tool.name }}</h4>
-              <p>{{ tool.description }}</p>
+              <p>{{ tool.description || '暂无描述' }}</p>
               <div class="tool-meta">
                 <span class="tool-server">{{ tool.server }}</span>
               </div>
@@ -221,7 +221,7 @@
                 </div>
                 <div class="preset-info">
                   <h5>{{ preset.name }}</h5>
-                  <p>{{ preset.description }}</p>
+                  <p>{{ preset.description || '暂无描述' }}</p>
                 </div>
               </div>
             </div>
@@ -431,7 +431,7 @@
                 </span>
               </div>
               
-              <p class="tool-description">{{ tool.description }}</p>
+              <p class="tool-description">{{ tool.description || '暂无描述' }}</p>
               
               <div class="tool-schema">
                 <details>

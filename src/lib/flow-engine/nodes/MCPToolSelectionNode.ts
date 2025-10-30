@@ -4,7 +4,7 @@
  */
 
 import { FlowNode, FlowInput, FlowOutput } from '../core/FlowNode'
-import { mcpService } from '@/services/mcp'
+import { llmMCPHandler } from '@/services/mcp/LLMBasedMCPHandler'
 import type { MCPToolCall } from '@/types'
 
 // 工具能力定义
@@ -172,33 +172,32 @@ export class MCPToolSelectionNode extends FlowNode {
   }
 
   /**
-   * 获取可用工具
+   * 获取可用工具 - 使用新的LLM-MCP处理器
    */
   private async getAvailableTools(): Promise<ToolCapability[]> {
     try {
-      // 获取MCP工具
-      const mcpToolsResult = await mcpService.getTools()
-      const mcpTools: ToolCapability[] = []
+      // 🚀 使用新的LLM-MCP处理器获取工具
+      const mcpTools = llmMCPHandler.getAvailableTools()
+      const capabilities: ToolCapability[] = []
 
-      if (mcpToolsResult.success && mcpToolsResult.data) {
-        for (const tool of mcpToolsResult.data) {
-          const capability: ToolCapability = {
-            toolName: tool.name,
-            serverId: tool.serverId || 'unknown',
-            description: tool.description || '',
-            capabilities: this.inferCapabilities(tool),
-            inputTypes: this.inferInputTypes(tool),
-            outputTypes: this.inferOutputTypes(tool),
-            reliability: this.calculateReliability(tool.name),
-            averageExecutionTime: this.getAverageExecutionTime(tool.name),
-            lastUsed: this.getLastUsedTime(tool.name),
-            usageCount: this.getUsageCount(tool.name)
-          }
-          mcpTools.push(capability)
+      for (const tool of mcpTools) {
+        const capability: ToolCapability = {
+          toolName: tool.name,
+          serverId: tool.server || 'unknown',
+          description: tool.description || '',
+          capabilities: this.inferCapabilities(tool),
+          inputTypes: this.inferInputTypes(tool),
+          outputTypes: this.inferOutputTypes(tool),
+          reliability: this.calculateReliability(tool.name),
+          averageExecutionTime: this.getAverageExecutionTime(tool.name),
+          lastUsed: this.getLastUsedTime(tool.name),
+          usageCount: this.getUsageCount(tool.name)
         }
+        capabilities.push(capability)
       }
 
-      return mcpTools
+      console.log(`🔧 流程引擎获取到 ${capabilities.length} 个MCP工具`)
+      return capabilities
 
     } catch (error) {
       console.error('获取可用工具失败:', error)

@@ -32,13 +32,25 @@ export class GeneralResponseNode extends FlowNode {
     }
 
     try {
-      const intentData = input.data.intent || { 
-        primaryIntent: 'general_chat', 
-        confidence: 0.5, 
-        entities: [], 
-        context: {} 
+      // 安全地获取意图数据
+      let intentData = input.data?.intent
+      
+      // 如果intent为null或undefined，提供默认值
+      if (!intentData) {
+        console.warn('⚠️ Intent数据为空，使用默认值')
+        intentData = { 
+          primaryIntent: 'conversation', 
+          confidence: 0.5, 
+          entities: [], 
+          parameters: {},
+          alternativeIntents: [],
+          contextFactors: [],
+          reasoning: '默认对话意图'
+        }
       }
-      const originalInput = input.data.originalInput || ''
+      
+      console.log('📊 处理的意图数据:', intentData)
+      const originalInput = input.data?.originalInput || ''
       const context = input.context
 
       console.log('💬 处理通用响应，意图:', intentData.primaryIntent)

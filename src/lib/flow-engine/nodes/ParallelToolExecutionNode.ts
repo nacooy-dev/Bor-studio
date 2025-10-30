@@ -4,7 +4,7 @@
  */
 
 import { ParallelFlowNode, FlowInput, FlowOutput, ParallelTask, ParallelResult } from '../core/FlowNode'
-import { mcpService } from '@/services/mcp'
+import { llmMCPHandler } from '@/services/mcp/LLMBasedMCPHandler'
 import type { MCPToolCall } from '@/types'
 
 // 工具执行结果
@@ -444,16 +444,9 @@ class ToolExecutionTask implements ParallelTask {
       try {
         console.log(`🔧 执行工具: ${this.toolName} (尝试 ${attempt + 1}/${this.retryAttempts + 1})`)
         
-        // 创建工具调用
-        const toolCall: MCPToolCall = {
-          tool: this.toolName,
-          server: this.serverId,
-          parameters: this.parameters
-        }
-        
-        // 执行工具调用
+        // 🚀 使用新的LLM-MCP处理器执行工具调用
         const result = await Promise.race([
-          mcpService.executeTool(toolCall),
+          llmMCPHandler.executeToolCall(this.toolName, this.parameters),
           this.createTimeoutPromise()
         ])
         

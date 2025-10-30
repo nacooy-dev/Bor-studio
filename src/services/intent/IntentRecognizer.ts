@@ -90,9 +90,10 @@ export class IntentRecognizer {
 
     // MCP管理相关
     this.keywords.set(IntentType.MCP_MANAGEMENT, [
+      '配置mcp', 'mcp配置', '配置MCP', 'MCP配置',
       'mcp', 'MCP', '工具管理', '管理mcp', '管理工具', 'mcp工具',
       '检查mcp状态', 'mcp状态', '工具状态', '添加工具', '启动工具',
-      '打开mcp配置', 'mcp配置', '配置mcp', '管理mcp工具',
+      '打开mcp配置', '管理mcp工具',
       '添加文件系统工具', '添加搜索工具', '添加数据库工具',
       '添加duckduckgo搜索工具', '添加网络研究工具', '添加网页获取工具',
       '添加时间服务器', '删除服务器', '删除duckduckgo服务器',
@@ -183,7 +184,7 @@ export class IntentRecognizer {
       [IntentType.WORKFLOW_CREATION]: ['创建工作流', '新建工作流', '设置自动化'],
       [IntentType.WORKFLOW_EXECUTION]: ['执行', '运行'],
       [IntentType.WORKFLOW_MANAGEMENT]: ['管理', '工作流管理'],
-      [IntentType.MCP_MANAGEMENT]: ['mcp', '工具管理', '管理mcp', 'mcp状态', '检查mcp状态', 'mcp服务器', '添加mcp服务器', '启动', '停止', 'server', 'time', 'file', 'system'],
+      [IntentType.MCP_MANAGEMENT]: ['配置mcp', 'mcp配置', 'mcp', '工具管理', '管理mcp', 'mcp状态', '检查mcp状态', 'mcp服务器', '添加mcp服务器', '启动', '停止', 'server', 'time', 'file', 'system'],
       [IntentType.MCP_TOOL_EXECUTION]: ['帮我读取', '帮我搜索', '执行工具'],
       [IntentType.TOOL_CALL]: ['工具', '调用'],
       [IntentType.FILE_OPERATION]: ['文件'],

@@ -5,8 +5,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { marked, type Tokens } from 'marked'
+
+// 缓存变量
+const lastRenderedContent = ref('')
+const lastRenderedResult = ref('')
 
 interface Props {
   content: string | any
@@ -46,7 +50,12 @@ const formattedContent = computed(() => {
     }
   }
 
-  console.log('🔧 Processing content with marked:', contentStr.substring(0, 100))
+  // 防抖：避免频繁渲染相同内容
+  if (contentStr === lastRenderedContent.value) {
+    return lastRenderedResult.value
+  }
+  
+  // console.log('🔧 Processing content with marked:', contentStr.substring(0, 50))
   
   try {
     // 配置marked选项
@@ -130,7 +139,12 @@ const formattedContent = computed(() => {
 
     // 解析Markdown
     const result = marked(contentStr)
-    console.log('✅ Marked parsing result:', typeof result === 'string' ? result.substring(0, 200) : '[Promise result]')
+    
+    // 更新缓存
+    lastRenderedContent.value = contentStr
+    lastRenderedResult.value = typeof result === 'string' ? result : ''
+    
+    // console.log('✅ Marked parsing result:', typeof result === 'string' ? result.substring(0, 50) : '[Promise result]')
     return result
 
   } catch (error) {

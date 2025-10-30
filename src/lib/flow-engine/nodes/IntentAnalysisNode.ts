@@ -146,10 +146,18 @@ export class IntentAnalysisNode extends FlowNode {
       // 根据意图选择下一个节点
       const nextNode = this.selectNextNode(analysisResult)
       
-      // 准备输出数据
+      // 准备输出数据 - 确保intent不为null
       const outputData = {
         originalInput: userInput,
-        intent: analysisResult,
+        intent: analysisResult || {
+          primaryIntent: IntentType.CONVERSATION,
+          confidence: 0.5,
+          entities: [],
+          parameters: {},
+          alternativeIntents: [],
+          contextFactors: [],
+          reasoning: '默认意图分析结果'
+        },
         nextAction: nextNode,
         timestamp: Date.now()
       }
@@ -178,10 +186,26 @@ export class IntentAnalysisNode extends FlowNode {
   }
 
   /**
-   * 核心意图分析方法
+   * 核心意图分析方法 - 使用LLM进行智能分析
    */
   private async analyzeIntent(userInput: string, context: any): Promise<IntentAnalysisResult> {
     const startTime = Date.now()
+    
+    console.log(`🧠 开始LLM意图分析: "${userInput}"`)
+    
+    // 🚀 使用LLM进行意图分析
+    try {
+      const llmResult = await this.performLLMIntentAnalysis(userInput, context)
+      if (llmResult) {
+        console.log(`✅ LLM意图分析成功: ${llmResult.primaryIntent} (${llmResult.confidence})`)
+        return llmResult
+      }
+    } catch (error) {
+      console.warn('⚠️ LLM意图分析失败，回退到规则匹配:', error)
+    }
+    
+    // 回退到规则匹配
+    console.log('🔄 使用规则匹配进行意图分析')
     
     // 1. 预处理输入
     const normalizedInput = this.normalizeInput(userInput)
@@ -219,6 +243,43 @@ export class IntentAnalysisNode extends FlowNode {
   }
 
   /**
+   * 🧠 使用LLM进行意图分析
+   */
+  private async performLLMIntentAnalysis(userInput: string, context: any): Promise<IntentAnalysisResult | null> {
+    // 构建LLM提示
+    const prompt = `请分析以下用户输入的意图，并返回JSON格式的结果：
+
+用户输入: "${userInput}"
+
+可能的意图类型：
+- web_search: 网页搜索（搜索、查找信息、新闻等）
+- tool_call: 工具调用（计算、文件操作等）
+- conversation: 普通对话
+- system_operation: 系统操作（设置、配置等）
+- knowledge_query: 知识查询（解释、说明等）
+
+请返回JSON格式：
+{
+  "primaryIntent": "意图类型",
+  "confidence": 0.9,
+  "reasoning": "分析原因",
+  "entities": [],
+  "parameters": {}
+}
+
+只返回JSON，不要其他内容。`
+
+    try {
+      // 这里需要调用LLM API
+      // 暂时返回null，让它回退到规则匹配
+      return null
+    } catch (error) {
+      console.error('LLM意图分析失败:', error)
+      return null
+    }
+  }
+
+  /**
    * 初始化意图识别模式
    */
   private initializePatterns(): void {
@@ -233,10 +294,14 @@ export class IntentAnalysisNode extends FlowNode {
       '你好', 'hello', 'hi', '谢谢', 'thanks', '再见', 'bye'
     ])
 
-    // 网络搜索类型
+    // 网络搜索类型 - 简化并修复模式匹配
     this.intentPatterns.set(IntentType.WEB_SEARCH, [
-      /(搜索|search|查找|find).+/i,
-      /(搜|查).+/i
+      /搜索.+/i,
+      /查找.+/i,
+      /search.+/i,
+      /find.+/i,
+      /搜.+/i,
+      /查.+/i
     ])
     
     this.intentKeywords.set(IntentType.WEB_SEARCH, [
@@ -331,10 +396,11 @@ export class IntentAnalysisNode extends FlowNode {
   }
 
   /**
-   * 规则匹配
+   * 规则匹配 - 增加调试日志
    */
   private performRuleMatching(input: string): RuleMatch[] {
     const matches: RuleMatch[] = []
+    console.log(`🔍 开始规则匹配，输入: "${input}"`)
 
     for (const [intent, patterns] of this.intentPatterns.entries()) {
       let score = 0
@@ -343,9 +409,11 @@ export class IntentAnalysisNode extends FlowNode {
 
       // 模式匹配
       for (const pattern of patterns) {
-        if (pattern.test(input)) {
+        const isMatch = pattern.test(input)
+        if (isMatch) {
           score += 0.8
           matchedPatterns.push(pattern.source)
+          console.log(`✅ 模式匹配成功: ${intent} - ${pattern.source}`)
         }
       }
 
@@ -355,6 +423,7 @@ export class IntentAnalysisNode extends FlowNode {
         if (input.includes(keyword.toLowerCase())) {
           score += 0.5
           matchedKeywords.push(keyword)
+          console.log(`✅ 关键词匹配成功: ${intent} - ${keyword}`)
         }
       }
 
@@ -366,10 +435,14 @@ export class IntentAnalysisNode extends FlowNode {
           matchedKeywords,
           contextBonus: 0
         })
+        console.log(`📊 意图 ${intent} 得分: ${score}`)
       }
     }
 
-    return matches.sort((a, b) => b.score - a.score)
+    const sortedMatches = matches.sort((a, b) => b.score - a.score)
+    console.log(`🏆 最终匹配结果:`, sortedMatches.map(m => `${m.intent}(${m.score})`).join(', '))
+    
+    return sortedMatches
   }
 
   /**

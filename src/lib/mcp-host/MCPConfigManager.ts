@@ -206,6 +206,7 @@ export class MCPConfigManager {
   private getObsidianVaultPath(): string {
     // 尝试自动检测 Obsidian vault 路径
     const possiblePaths = [
+      '/Users/lvyun/Nextcloud2/Bor-doc',
       '/Users/lvyun/Nextcloud2/奈山堂语2',
       '/Users/lvyun/Documents/Obsidian Vault',
       '/Users/lvyun/obsidian',

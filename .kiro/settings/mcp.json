@@ -18,6 +18,32 @@
         "mcp_obsidian_search_by_date_tool",
         "mcp_obsidian_list_tags_tool"
       ]
+    },
+    "duckduckgo-search": {
+      "command": "uvx",
+      "args": ["duckduckgo-search-mcp"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "search"
+      ]
+    },
+    "ultrarag": {
+      "command": "uvx",
+      "args": ["ultrarag-mcp"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "ULTRARAG_CONFIG_PATH": "./ultrarag_config.yaml"
+      },
+      "disabled": true,
+      "autoApprove": [
+        "knowledge_search",
+        "document_index",
+        "semantic_search"
+      ],
+      "note": "UltraRAG MCP服务器 - 暂时禁用，等待正式发布"
     }
   }
 }

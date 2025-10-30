@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { spawn, execSync } from 'child_process'
 import type { MCPServerConfig, MCPToolCall } from '../src/lib/mcp-host/types'
 import { electronDatabase } from './database'
 
@@ -26,36 +27,16 @@ console.log('- 开发环境:', isDev)
 console.log('- NODE_ENV:', process.env.NODE_ENV)
 console.log('- VITE_DEV_SERVER_URL:', process.env.VITE_DEV_SERVER_URL)
 
-// MCP 实现选择 - 使用动态导入避免启动时加载
-const USE_STANDARD_MCP = process.env.USE_STANDARD_MCP === 'false' ? false : true // 默认使用标准 MCP
-console.log('- 使用标准MCP:', USE_STANDARD_MCP)
+// MCP服务器管理
+import { simpleMCPClient } from './SimpleMCPClient'
 
-// 延迟创建MCP Host实例，直到应用准备好
-let mcpHost: any = null
-
-async function initializeMCPHost(): Promise<void> {
+async function initializeMCPClient(): Promise<void> {
   try {
-    console.log('🔧 初始化MCP Host...')
-    if (USE_STANDARD_MCP) {
-      const { StandardMCPAdapter } = await import('../src/lib/mcp-host/StandardMCPAdapter')
-      mcpHost = new StandardMCPAdapter({
-        maxServers: 10,
-        serverTimeout: 30000,
-        toolTimeout: 60000,
-        enableLogging: true
-      })
-    } else {
-      const { MCPHostMain } = await import('../src/lib/mcp-host/MCPHostMain')
-      mcpHost = new MCPHostMain({
-        maxServers: 10,
-        serverTimeout: 30000,
-        toolTimeout: 60000,
-        enableLogging: true
-      })
-    }
-    console.log('✅ MCP Host初始化完成')
+    console.log('🔧 初始化MCP管理器...')
+    // MCP管理器已经在导入时初始化
+    console.log('✅ MCP管理器初始化完成')
   } catch (error) {
-    console.error('❌ MCP Host初始化失败:', error)
+    console.error('❌ MCP管理器初始化失败:', error)
   }
 }
 
@@ -178,37 +159,11 @@ function createWindow(): void {
 // 初始化MCP管理器
 async function initializeMCP(): Promise<void> {
   try {
-    if (!mcpHost) {
-      console.log('⚠️ MCP Host尚未初始化')
-      return
-    }
+    console.log('🔧 初始化MCP服务...')
 
-    // MCP Host 事件监听
-    mcpHost.on('server_added', (server: any) => {
-      console.log(`✅ MCP服务器已添加: ${server.id}`)
-      // 保存服务器配置
-      saveServerConfig(server.config)
-    })
-
-    mcpHost.on('server_started', (server: any) => {
-      console.log(`🚀 MCP服务器已启动: ${server.id}`)
-    })
-
-    mcpHost.on('server_stopped', (server: any) => {
-      console.log(`⏹️ MCP服务器已停止: ${server.id}`)
-    })
-
-    mcpHost.on('server_error', (server: any, error: any) => {
-      console.error(`❌ MCP服务器错误 ${server.id}:`, error)
-    })
-
-    mcpHost.on('tools_discovered', (server: any, tools: any) => {
-      console.log(`🔧 发现工具 ${server.id}:`, tools.map((t: any) => t.name))
-    })
-    
-    console.log('✅ MCP Host initialized')
+    console.log('✅ 标准MCP客户端已准备就绪')
   } catch (error) {
-    console.error('❌ MCP Host initialization failed:', error)
+    console.error('❌ 标准MCP客户端初始化失败:', error)
   }
 }
 
@@ -362,10 +317,10 @@ function setupMCPHandlers(): void {
   // 添加MCP服务器
   ipcMain.handle('mcp:add-server', async (_, config: MCPServerConfig) => {
     try {
-      if (!mcpHost) {
-        throw new Error('MCP Host not initialized')
+      const result = await simpleMCPClient.addServer(config)
+      if (!result.success) {
+        throw new Error(result.error)
       }
-      await mcpHost.addServer(config)
       
       // 保存服务器配置到数据库
       await saveServerConfig(config)
@@ -379,12 +334,12 @@ function setupMCPHandlers(): void {
   // 启动MCP服务器
   ipcMain.handle('mcp:start-server', async (_, serverId: string) => {
     try {
-      if (!mcpHost) {
-        throw new Error('MCP Host not initialized')
-      }
-      await mcpHost.startServer(serverId)
-      return { success: true }
+      console.log(`🚀 启动MCP服务器: ${serverId}`)
+      const result = await simpleMCPClient.startServer(serverId)
+      return result
+      
     } catch (error: any) {
+      console.error(`❌ 启动服务器失败 ${serverId}:`, error)
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
@@ -392,11 +347,8 @@ function setupMCPHandlers(): void {
   // 停止MCP服务器
   ipcMain.handle('mcp:stop-server', async (_, serverId: string) => {
     try {
-      if (!mcpHost) {
-        throw new Error('MCP Host not initialized')
-      }
-      await mcpHost.stopServer(serverId)
-      return { success: true }
+      const result = await simpleMCPClient.stopServer(serverId)
+      return result
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
@@ -405,23 +357,32 @@ function setupMCPHandlers(): void {
   // 获取所有服务器
   ipcMain.handle('mcp:get-servers', async () => {
     try {
-      if (!mcpHost) {
-        return { success: true, data: [] }
+      const result = await simpleMCPClient.getServers()
+      
+      if (result.success && result.data) {
+        // 合并数据库中的配置信息，确保配置完整
+        const savedConfigs = await loadServerConfigs()
+        console.log('🔍 数据库中的服务器配置:', JSON.stringify(savedConfigs, null, 2))
+        
+        const enrichedServers = result.data.map((server: any) => {
+          const savedConfig = savedConfigs.find((config: any) => config.id === server.id)
+          console.log(`🔍 服务器 ${server.id} 配置合并:`)
+          console.log('  - StandardMCP配置:', JSON.stringify(server.config, null, 2))
+          console.log('  - 数据库配置:', JSON.stringify(savedConfig, null, 2))
+          
+          const finalConfig = savedConfig || server.config
+          console.log('  - 最终配置:', JSON.stringify(finalConfig, null, 2))
+          
+          return {
+            ...server,
+            config: finalConfig // 优先使用数据库中的完整配置
+          }
+        })
+        
+        return { success: true, data: enrichedServers }
       }
-      const servers = mcpHost.getServers()
-      // 清理不能序列化的对象
-      const cleanServers = servers.map((server: any) => ({
-        id: server.id,
-        config: server.config,
-        status: server.status,
-        capabilities: server.capabilities,
-        tools: server.tools,
-        lastError: server.lastError,
-        pid: server.pid,
-        startTime: server.startTime
-        // 不包含 process 和 messageBuffer
-      }))
-      return { success: true, data: cleanServers }
+      
+      return result
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
@@ -430,22 +391,8 @@ function setupMCPHandlers(): void {
   // 获取所有工具
   ipcMain.handle('mcp:get-tools', async (_, serverId?: string) => {
     try {
-      if (!mcpHost) {
-        return { success: true, data: [] }
-      }
-      const tools = serverId ? 
-        mcpHost.getServerStatus(serverId)?.tools || [] : 
-        mcpHost.getAllTools()
-      
-      // 确保工具对象可以被序列化
-      const cleanTools = tools.map((tool: any) => ({
-        name: tool.name,
-        description: tool.description,
-        schema: tool.schema,
-        server: tool.server
-      }))
-      
-      return { success: true, data: cleanTools }
+      const result = await simpleMCPClient.getTools(serverId)
+      return result
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
@@ -454,11 +401,8 @@ function setupMCPHandlers(): void {
   // 执行工具
   ipcMain.handle('mcp:execute-tool', async (_, call: MCPToolCall) => {
     try {
-      if (!mcpHost) {
-        throw new Error('MCP Host not initialized')
-      }
-      const result = await mcpHost.executeTool(call)
-      return { success: true, data: result }
+      const result = await simpleMCPClient.executeTool(call)
+      return result
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
@@ -467,20 +411,13 @@ function setupMCPHandlers(): void {
   // 查找工具
   ipcMain.handle('mcp:find-tool', async (_, name: string, serverId?: string) => {
     try {
-      if (!mcpHost) {
-        return { success: true, data: null }
+      const toolsResult = await simpleMCPClient.getTools(serverId)
+      if (!toolsResult.success || !toolsResult.data) {
+        return { success: false, error: toolsResult.error }
       }
-      const tool = mcpHost.findTool(name, serverId)
-      
-      // 清理工具对象
-      const cleanTool = tool ? {
-        name: tool.name,
-        description: tool.description,
-        schema: tool.schema,
-        server: tool.server
-      } : null
-      
-      return { success: true, data: cleanTool }
+      const tool = toolsResult.data.find(t => t.name === name)
+      const result = { success: true, data: tool || null }
+      return result
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
@@ -489,10 +426,10 @@ function setupMCPHandlers(): void {
   // 删除MCP服务器
   ipcMain.handle('mcp:remove-server', async (_, serverId: string) => {
     try {
-      if (!mcpHost) {
-        throw new Error('MCP Host not initialized')
+      const result = await simpleMCPClient.removeServer(serverId)
+      if (!result.success) {
+        throw new Error(result.error)
       }
-      await mcpHost.removeServer(serverId)
       
       // 从数据库中删除服务器配置
       try {
@@ -527,28 +464,78 @@ function setupMCPHandlers(): void {
 async function loadSavedServers(): Promise<void> {
   try {
     console.log('📂 正在加载已保存的服务器配置...')
+    
+    // 清理可能损坏的配置，重新开始
+    console.log('🧹 清理现有配置，重新开始...')
+    electronDatabase.setConfig('mcp_installed_servers', '[]', 'mcp')
+    
     const savedServers = await loadServerConfigs()
     
-    // 添加每个保存的服务器到 MCP Host
-    for (const config of savedServers) {
+    // 添加默认的预设服务器
+    console.log('📝 添加默认预设服务器')
+    const defaultServers = [
+      {
+        id: 'obsidian',
+        name: 'Obsidian',
+        description: 'Obsidian 笔记管理工具',
+        command: 'uvx',
+        args: ['obsidian-mcp'],
+        env: {
+          OBSIDIAN_VAULT_PATH: '/Users/lvyun/Nextcloud2/Bor-doc'
+        },
+        autoStart: true
+      },
+      {
+        id: 'duckduckgo-search',
+        name: 'DuckDuckGo Search',
+        description: '网络搜索工具',
+        command: 'uvx',
+        args: ['duckduckgo-mcp-server'],
+        autoStart: true
+      }
+    ]
+    
+    // 保存默认配置到数据库
+    electronDatabase.setConfig('mcp_installed_servers', JSON.stringify(defaultServers), 'mcp')
+    console.log('✅ 已保存默认服务器配置到数据库')
+    
+    // 重新加载配置
+    const refreshedServers = await loadServerConfigs()
+    
+    // 添加每个保存的服务器到标准MCP客户端
+    for (const config of refreshedServers) {
       try {
-        if (!mcpHost) {
-          console.log('⚠️ MCP Host尚未初始化，跳过服务器加载')
-          return
+        console.log('🔍 正在加载服务器配置:', JSON.stringify(config, null, 2))
+        
+        // MCP管理器已准备就绪
+        
+        // 验证配置完整性
+        if (!config.command || !config.args) {
+          console.error(`❌ 服务器 ${config.id} 配置不完整，跳过加载`)
+          console.error(`   - command: ${config.command}`)
+          console.error(`   - args: ${JSON.stringify(config.args)}`)
+          continue
         }
-        await mcpHost.addServer(config)
+        
+        const addResult = await simpleMCPClient.addServer(config)
+        if (!addResult.success) {
+          throw new Error(addResult.error)
+        }
         console.log(`✅ 已加载服务器: ${config.name} (${config.id})`)
         
         // 如果配置为自动启动，则启动服务器
         if (config.autoStart) {
           console.log(`🚀 正在自动启动服务器: ${config.name} (${config.id})`)
-          // 使用Promise.race实现超时控制，避免长时间阻塞
-          await Promise.race([
-            mcpHost.startServer(config.id),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Server start timeout after 10 seconds')), 10000)
-            )
-          ])
+          try {
+            const startResult = await simpleMCPClient.startServer(config.id)
+            if (startResult.success) {
+              console.log(`✅ 服务器 ${config.id} 启动成功`)
+            } else {
+              console.error(`❌ 服务器 ${config.id} 启动失败:`, startResult.error)
+            }
+          } catch (startError) {
+            console.error(`❌ 服务器 ${config.id} 启动异常:`, startError)
+          }
         }
       } catch (error) {
         console.error(`❌ 加载服务器失败 ${config.id}:`, error)
@@ -578,9 +565,8 @@ app.whenReady().then(async () => {
     console.error('❌ 数据库初始化失败:', error)
   }
 
-  // 初始化MCP
-  await initializeMCPHost()
-  await initializeMCP()
+  // 初始化标准MCP客户端
+  await initializeMCPClient()
   setupMCPHandlers()
   
   // 加载已保存的服务器配置
@@ -608,12 +594,10 @@ app.on('before-quit', async () => {
 
   // 清理MCP资源
   try {
-    if (mcpHost) {
-      await mcpHost.cleanup()
-    }
-    console.log('✅ MCP resources cleaned up')
+    await simpleMCPClient.cleanup()
+    console.log('✅ Standard MCP Client resources cleaned up')
   } catch (error) {
-    console.error('❌ Error cleaning up MCP resources:', error)
+    console.error('❌ Error cleaning up Standard MCP Client resources:', error)
   }
 })
 
@@ -715,6 +699,7 @@ ipcMain.handle('save-config', (_, configType: string, data: any) => {
 // 语音识别功能
 import { exec } from 'child_process'
 import { promisify } from 'util'
+
 
 const execAsync = promisify(exec)
 

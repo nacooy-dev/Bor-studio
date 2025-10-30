@@ -118,6 +118,18 @@ export interface MCPServerConfig {
   autoStart?: boolean
 }
 
+// MCP 工具定义
+export interface MCPTool {
+  name: string
+  description: string
+  server: string
+  inputSchema?: {
+    type: string
+    properties: Record<string, any>
+    required?: string[]
+  }
+}
+
 // MCP 工具调用
 export interface MCPToolCall {
   tool: string
